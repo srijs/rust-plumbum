@@ -3,15 +3,15 @@ use std::marker::PhantomData;
 use std::collections::VecDeque;
 
 use super::instr::Instr;
-use super::Operational;
+use super::Program;
 
 pub struct Kleisli<I: Instr<Param=A>, A, B> {
     phan: PhantomData<(A, B)>,
-    deque: VecDeque<Box<Fn(Box<()>) -> Operational<I, ()> + 'static>>
+    deque: VecDeque<Box<Fn(Box<()>) -> Program<I, ()> + 'static>>
 }
 
-unsafe fn fn_transmute<I: Instr, A, B, F: 'static + Fn(Box<A>) -> Operational<I, B>>(f: F)
-    -> Box<Fn(Box<()>) -> Operational<I, ()>> {
+unsafe fn fn_transmute<I: Instr, A, B, F: 'static + Fn(Box<A>) -> Program<I, B>>(f: F)
+    -> Box<Fn(Box<()>) -> Program<I, ()>> {
     Box::new(move |ptr| {
         let a_box = transmute::<Box<()>, Box<A>>(ptr);
         transmute(f(a_box))
@@ -25,7 +25,7 @@ impl<I: Instr<Param=A>, A> Kleisli<I, A, A> {
 }
 
 pub fn append_boxed<I: 'static + Instr<Param=A>, A, B, C, F>(mut k: Kleisli<I, A, B>, f: F) -> Kleisli<I, A, C>
-    where F: 'static + Fn(Box<B>) -> Operational<I, C> {
+    where F: 'static + Fn(Box<B>) -> Program<I, C> {
     let g = unsafe { fn_transmute(f) };
     (&mut k.deque).push_back(g);
     Kleisli { phan: PhantomData, deque: k.deque }
@@ -34,13 +34,13 @@ pub fn append_boxed<I: 'static + Instr<Param=A>, A, B, C, F>(mut k: Kleisli<I, A
 impl<I: 'static + Instr<Param=A>, A, B> Kleisli<I, A, B> {
 
     pub fn append<F, C>(self, f: F) -> Kleisli<I, A, C>
-        where F: 'static + Fn(B) -> Operational<I, C> {
+        where F: 'static + Fn(B) -> Program<I, C> {
         append_boxed(self, move |b| f(*b))
     }
 
-    pub fn run(mut self, a: A) -> Operational<I, B> {
+    pub fn run(mut self, a: A) -> Program<I, B> {
         unsafe {
-            let mut r: Operational<I, ()> = transmute::<Operational<I, A>, _>(Operational::new(a));
+            let mut r: Program<I, ()> = transmute::<Program<I, A>, _>(Program::new(a));
             loop {
                 match self.deque.pop_front() {
                     None => return transmute(r),
@@ -55,8 +55,8 @@ impl<I: 'static + Instr<Param=A>, A, B> Kleisli<I, A, B> {
 #[test]
 fn kleisli_run_plus_one() {
     use super::instr::Identity;
-    let k: Kleisli<Identity<i32>, _, _> = Kleisli::new().append(|a| Operational::new(a + 1));
-    if let Operational::Pure(x) = k.run(42) {
+    let k: Kleisli<Identity<i32>, _, _> = Kleisli::new().append(|a| Program::new(a + 1));
+    if let Program::Pure(x) = k.run(42) {
         assert_eq!(*x, 43);
     }
 }

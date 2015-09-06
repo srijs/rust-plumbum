@@ -4,35 +4,31 @@ use instr::Instr;
 mod kleisli;
 pub use kleisli::Kleisli;
 
-pub enum Operational<I: Instr, A> {
+pub enum Program<I: Instr, A> {
     Pure(Box<A>),
     Then(Box<I>, Kleisli<I, I::Param, A>)
 }
 
-impl<I: 'static + Instr, A> Operational<I, A> {
+impl<I: 'static + Instr, A> Program<I, A> {
 
-    pub fn new(a: A) -> Operational<I, A> {
-        Operational::Pure(Box::new(a))
+    pub fn new(a: A) -> Program<I, A> {
+        Program::Pure(Box::new(a))
     }
 
-    fn and_then_boxed<B, F>(self, js: F) -> Operational<I, B>
-        where F: 'static + Fn(Box<A>) -> Operational<I, B> {
+    fn and_then_boxed<B, F>(self, js: F) -> Program<I, B>
+        where F: 'static + Fn(Box<A>) -> Program<I, B> {
         match self {
-            Operational::Pure(a) => js(a),
-            Operational::Then(i, is) => Operational::Then(i, kleisli::append_boxed(is, js))
+            Program::Pure(a) => js(a),
+            Program::Then(i, is) => Program::Then(i, kleisli::append_boxed(is, js))
         }
     }
 
-    pub fn and_then<B, F>(self, js: F) -> Operational<I, B>
-        where F: 'static + Fn(A) -> Operational<I, B> {
+    pub fn and_then<B, F>(self, js: F) -> Program<I, B>
+        where F: 'static + Fn(A) -> Program<I, B> {
         match self {
-            Operational::Pure(a) => js(*a),
-            Operational::Then(i, is) => Operational::Then(i, is.append(js))
+            Program::Pure(a) => js(*a),
+            Program::Then(i, is) => Program::Then(i, is.append(js))
         }
     }
 
-}
-
-#[test]
-fn it_works() {
 }
