@@ -1,3 +1,5 @@
+use std::fmt;
+
 pub mod instr;
 use instr::Instr;
 
@@ -31,4 +33,22 @@ impl<I: 'static + Instr, A> Program<I, A> {
         }
     }
 
+}
+
+impl<I: 'static + Instr, A: PartialEq> PartialEq for Program<I, A> {
+    fn eq(&self, other: &Program<I, A>) -> bool {
+        match (self, other) {
+            (&Program::Pure(ref a), &Program::Pure(ref b)) => a == b,
+            _ => false
+        }
+    }
+}
+
+impl<I: 'static + Instr, A: fmt::Debug> fmt::Debug for Program<I, A> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &Program::Pure(ref a) => write!(f, "Pure({:?})", a),
+            &Program::Then(_, _) => write!(f, "Then(..)")
+        }
+    }
 }

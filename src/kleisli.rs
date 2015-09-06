@@ -12,10 +12,7 @@ pub struct Kleisli<I: Instr<Param=A>, A, B> {
 
 unsafe fn fn_transmute<I: Instr, A, B, F: 'static + Fn(Box<A>) -> Program<I, B>>(f: F)
     -> Box<Fn(Box<()>) -> Program<I, ()>> {
-    Box::new(move |ptr| {
-        let a_box = transmute::<Box<()>, Box<A>>(ptr);
-        transmute(f(a_box))
-    })
+    Box::new(move |ptr| transmute(f(transmute::<Box<()>, Box<A>>(ptr))))
 }
 
 impl<I: Instr<Param=A>, A> Kleisli<I, A, A> {
@@ -24,10 +21,10 @@ impl<I: Instr<Param=A>, A> Kleisli<I, A, A> {
     }
 }
 
-pub fn append_boxed<I: 'static + Instr<Param=A>, A, B, C, F>(mut k: Kleisli<I, A, B>, f: F) -> Kleisli<I, A, C>
+pub fn append_boxed<I: 'static + Instr<Param=A>, A, B, C, F>
+    (mut k: Kleisli<I, A, B>, f: F) -> Kleisli<I, A, C>
     where F: 'static + Fn(Box<B>) -> Program<I, C> {
-    let g = unsafe { fn_transmute(f) };
-    (&mut k.deque).push_back(g);
+    k.deque.push_back(unsafe { fn_transmute(f) });
     Kleisli { phan: PhantomData, deque: k.deque }
 }
 
@@ -40,7 +37,7 @@ impl<I: 'static + Instr<Param=A>, A, B> Kleisli<I, A, B> {
 
     pub fn run(mut self, a: A) -> Program<I, B> {
         unsafe {
-            let mut r: Program<I, ()> = transmute::<Program<I, A>, _>(Program::new(a));
+            let mut r = transmute::<Program<I, A>, Program<I, ()>>(Program::new(a));
             loop {
                 match self.deque.pop_front() {
                     None => return transmute(r),
@@ -56,7 +53,5 @@ impl<I: 'static + Instr<Param=A>, A, B> Kleisli<I, A, B> {
 fn kleisli_run_plus_one() {
     use super::instr::Identity;
     let k: Kleisli<Identity<i32>, _, _> = Kleisli::new().append(|a| Program::new(a + 1));
-    if let Program::Pure(x) = k.run(42) {
-        assert_eq!(*x, 43);
-    }
+    assert_eq!(k.run(42), Program::new(43));
 }
