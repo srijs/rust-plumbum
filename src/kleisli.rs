@@ -5,7 +5,7 @@ use std::collections::VecDeque;
 use super::instr::Instr;
 use super::Operational;
 
-pub struct Kleisli<I: Instr, A, B> {
+pub struct Kleisli<I: Instr<Param=A>, A, B> {
     phan: PhantomData<(A, B)>,
     deque: VecDeque<Box<Fn(Box<()>) -> Operational<I, ()> + 'static>>
 }
@@ -18,13 +18,13 @@ unsafe fn fn_transmute<I: Instr, A, B, F: 'static + Fn(Box<A>) -> Operational<I,
     })
 }
 
-impl<I: Instr, A> Kleisli<I, A, A> {
+impl<I: Instr<Param=A>, A> Kleisli<I, A, A> {
     pub fn new() -> Kleisli<I, A, A> {
         Kleisli { phan: PhantomData, deque: VecDeque::new() }
     }
 }
 
-impl<I: 'static + Instr, A, B> Kleisli<I, A, B> {
+impl<I: 'static + Instr<Param=A>, A, B> Kleisli<I, A, B> {
 
     pub fn append<F, C>(mut self, f: F) -> Kleisli<I, A, C>
         where F: 'static + Fn(Box<B>) -> Operational<I, C> {
@@ -50,7 +50,7 @@ impl<I: 'static + Instr, A, B> Kleisli<I, A, B> {
 #[test]
 fn kleisli_run_plus_one() {
     use super::instr::Identity;
-    let k: Kleisli<Identity<()>, i32, i32> = Kleisli::new().append(|a| Operational::new(*a + 1));
+    let k: Kleisli<Identity<i32>, _, _> = Kleisli::new().append(|a| Operational::new(*a + 1));
     if let Operational::Pure(x) = k.run(42) {
         assert_eq!(*x, 43);
     }
