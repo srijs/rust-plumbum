@@ -19,7 +19,7 @@ impl<I: 'static + Instr, A> Operational<I, A> {
         where F: 'static + Fn(Box<A>) -> Operational<I, B> {
         match self {
             Operational::Pure(a) => js(a),
-            Operational::Then(i, is) => Operational::Then(i, is.append(js))
+            Operational::Then(i, is) => Operational::Then(i, kleisli::append_boxed(is, js))
         }
     }
 
@@ -27,7 +27,7 @@ impl<I: 'static + Instr, A> Operational<I, A> {
         where F: 'static + Fn(A) -> Operational<I, B> {
         match self {
             Operational::Pure(a) => js(*a),
-            Operational::Then(i, is) => Operational::Then(i, is.append(move |a| js(*a)))
+            Operational::Then(i, is) => Operational::Then(i, is.append(js))
         }
     }
 
