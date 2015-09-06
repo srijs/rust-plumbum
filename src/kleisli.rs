@@ -55,3 +55,10 @@ fn kleisli_run_plus_one() {
     let k: Kleisli<Identity<i32>, _, _> = Kleisli::new().append(|a| Program::new(a + 1));
     assert_eq!(k.run(42), Program::new(43));
 }
+
+#[test]
+fn kleisli_run_to_string() {
+    use super::instr::Identity;
+    let k: Kleisli<Identity<i32>, _, _> = Kleisli::new().append(|a: i32| Program::new(a.to_string()));
+    assert_eq!(k.run(42), Program::new("42".to_string()));
+}
