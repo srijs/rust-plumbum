@@ -1,4 +1,8 @@
 [package]
 name = "operational"
-version = "0.1.0"
+version = "0.0.1"
 authors = ["Sam Rijs <srijs@airpost.net>"]
+description = "Operational Monad"
+license = "MIT"
+repository = "https://github.com/srijs/rust-operational"
+keywords = ["free", "operational", "monad", "program", "interpreter"]
