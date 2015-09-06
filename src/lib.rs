@@ -33,6 +33,11 @@ impl<'a, I: 'a + Instr, A> Program<'a, I, A> {
         }
     }
 
+    pub fn map<B, F>(self, f: F) -> Program<'a, I, B>
+        where F: 'a + Fn(A) -> B {
+        self.and_then(move |a| Program::new(f(a)))
+    }
+
 }
 
 impl<'a, I: 'a + Instr, A: PartialEq> PartialEq for Program<'a, I, A> {
