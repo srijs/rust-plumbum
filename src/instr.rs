@@ -1,18 +1,26 @@
+/// The trait for an instruction set.
+///
+/// Holds its return type as an associated type.
 pub trait Instr {
-    type Param;
+    type Return;
 }
 
+/// The instruction that does nothing.
 pub struct Identity<A>(pub A);
 
 impl<A> Instr for Identity<A> {
-    type Param = A;
+    type Return = A;
 }
 
+/// Combines two instruction sets into one.
+///
+/// This is useful to compose multiple smaller
+/// instruction sets into a bigger one.
 pub enum Coproduct<I, J> {
     Left(I),
     Right(J)
 }
 
-impl<A, I: Instr<Param=A>, J: Instr<Param=A>> Instr for Coproduct<I, J> {
-    type Param = A;
+impl<A, I: Instr<Return=A>, J: Instr<Return=A>> Instr for Coproduct<I, J> {
+    type Return = A;
 }
