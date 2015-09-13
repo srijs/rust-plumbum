@@ -1,3 +1,5 @@
+use super::{Program, point};
+
 /// The trait for an instruction set.
 ///
 /// Holds its return type as an associated type.
@@ -10,6 +12,10 @@ pub struct Identity<A>(pub A);
 
 impl<A> Instr for Identity<A> {
     type Return = A;
+}
+
+pub fn identity<'a, A: 'a>(a: A) -> Program<'a, Identity<A>, A> {
+    point(a)
 }
 
 /// Combines two instruction sets into one.

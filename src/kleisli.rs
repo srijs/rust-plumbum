@@ -22,11 +22,11 @@ impl<'a, I: Instr<Return=A>, A> Kleisli<'a, I, A, A> {
     /// # Example
     ///
     /// ```rust
-    /// use operational::{Kleisli, point};
-    /// use operational::instr::Identity;
+    /// use operational::Kleisli;
+    /// use operational::instr::identity;
     ///
-    /// let k: Kleisli<Identity<_>, _, _> = Kleisli::new();
-    /// assert_eq!(k.run(42), point(42));
+    /// let k = Kleisli::new();
+    /// assert_eq!(k.run(42), identity(42));
     /// ```
     pub fn new() -> Kleisli<'a, I, A, A> {
         Kleisli { phan: PhantomData, deque: VecDeque::new() }
@@ -49,11 +49,10 @@ impl<'a, I: 'a + Instr<Return=A>, A, B> Kleisli<'a, I, A, B> {
     ///
     /// ```rust
     /// use operational::{Kleisli, point};
-    /// use operational::instr::Identity;
+    /// use operational::instr::identity;
     ///
-    /// let k: Kleisli<Identity<_>, _, _> = Kleisli::new()
-    ///     .append(|x| point(x + 1));
-    /// assert_eq!(k.run(42), point(43));
+    /// let k = Kleisli::new().append(|x| point(x + 1));
+    /// assert_eq!(k.run(42), identity(43));
     /// ```
     pub fn append<F, C>(self, f: F) -> Kleisli<'a, I, A, C>
         where F: 'a + Fn(B) -> Program<'a, I, C> {
