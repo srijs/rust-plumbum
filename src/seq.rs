@@ -4,15 +4,15 @@
 ///
 /// ```
 /// #[macro_use] extern crate operational;
-/// use operational::Program;
+/// use operational::{Program, point};
 /// use operational::instr::Identity;
 /// fn main() {
 ///     let l: Program<Identity<i32>, _> = seq!{
-///         for x = Program::new(42);
+///         for x = point(42);
 ///         let y = x + 5;
-///         Program::new(y + 5)
+///         point(y + 5)
 ///     };
-///     assert_eq!(l, Program::new(52));
+///     assert_eq!(l, point(52));
 /// }
 #[macro_export]
 macro_rules! seq {

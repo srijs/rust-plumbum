@@ -33,14 +33,6 @@ pub enum Program<'a, I: Instr, A> {
 
 impl<'a, I: 'a + Instr, A> Program<'a, I, A> {
 
-    /// Using a value, constructs the empty program,
-    /// i.e. a program that directly returns that value.
-    ///
-    /// Equivalent to the monadic `return`.
-    pub fn new(a: A) -> Program<'a, I, A> {
-        Program::Pure(Box::new(a))
-    }
-
     fn and_then_boxed<B, F>(self, js: F) -> Program<'a, I, B>
         where F: 'a + Fn(Box<A>) -> Program<'a, I, B> {
         match self {
@@ -71,7 +63,7 @@ impl<'a, I: 'a + Instr, A> Program<'a, I, A> {
     /// Equivalent to the monadic `liftM`.
     pub fn map<B, F>(self, f: F) -> Program<'a, I, B>
         where F: 'a + Fn(A) -> B {
-        self.and_then(move |a| Program::new(f(a)))
+        self.and_then(move |a| point(f(a)))
     }
 
 }
@@ -92,4 +84,12 @@ impl<'a, I: 'a + Instr, A: fmt::Debug> fmt::Debug for Program<'a, I, A> {
             &Program::Then(_, _) => write!(f, "Then(..)")
         }
     }
+}
+
+/// Using a value, constructs the empty program,
+/// i.e. a program that directly returns that value.
+///
+/// Equivalent to the monadic `return`.
+pub fn point<'a, I: 'a + Instr, A>(a: A) -> Program<'a, I, A> {
+    Program::Pure(Box::new(a))
 }

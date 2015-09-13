@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use std::collections::VecDeque;
 
 use super::instr::Instr;
-use super::Program;
+use super::{Program, point};
 
 /// The Kleisli arrow from `A` to `Program<I, B>`.
 pub struct Kleisli<'a, I: Instr<Return=A>, A, B> {
@@ -22,11 +22,11 @@ impl<'a, I: Instr<Return=A>, A> Kleisli<'a, I, A, A> {
     /// # Example
     ///
     /// ```rust
-    /// use operational::{Kleisli, Program};
+    /// use operational::{Kleisli, point};
     /// use operational::instr::Identity;
     ///
     /// let k: Kleisli<Identity<_>, _, _> = Kleisli::new();
-    /// assert_eq!(k.run(42), Program::new(42));
+    /// assert_eq!(k.run(42), point(42));
     /// ```
     pub fn new() -> Kleisli<'a, I, A, A> {
         Kleisli { phan: PhantomData, deque: VecDeque::new() }
@@ -48,12 +48,12 @@ impl<'a, I: 'a + Instr<Return=A>, A, B> Kleisli<'a, I, A, B> {
     /// # Example
     ///
     /// ```rust
-    /// use operational::{Kleisli, Program};
+    /// use operational::{Kleisli, point};
     /// use operational::instr::Identity;
     ///
     /// let k: Kleisli<Identity<_>, _, _> = Kleisli::new()
-    ///     .append(|x| Program::new(x + 1));
-    /// assert_eq!(k.run(42), Program::new(43));
+    ///     .append(|x| point(x + 1));
+    /// assert_eq!(k.run(42), point(43));
     /// ```
     pub fn append<F, C>(self, f: F) -> Kleisli<'a, I, A, C>
         where F: 'a + Fn(B) -> Program<'a, I, C> {
@@ -64,7 +64,7 @@ impl<'a, I: 'a + Instr<Return=A>, A, B> Kleisli<'a, I, A, B> {
     /// the resulting program.
     pub fn run(mut self, a: A) -> Program<'a, I, B> {
         unsafe {
-            let mut r = transmute::<Program<'a, I, A>, Program<'a, I, ()>>(Program::new(a));
+            let mut r = transmute::<Program<'a, I, A>, Program<'a, I, ()>>(point(a));
             loop {
                 match self.deque.pop_front() {
                     None => return transmute(r),
@@ -79,13 +79,13 @@ impl<'a, I: 'a + Instr<Return=A>, A, B> Kleisli<'a, I, A, B> {
 #[test]
 fn kleisli_run_plus_one() {
     use super::instr::Identity;
-    let k: Kleisli<Identity<i32>, _, _> = Kleisli::new().append(|a| Program::new(a + 1));
-    assert_eq!(k.run(42), Program::new(43));
+    let k: Kleisli<Identity<i32>, _, _> = Kleisli::new().append(|a| point(a + 1));
+    assert_eq!(k.run(42), point(43));
 }
 
 #[test]
 fn kleisli_run_to_string() {
     use super::instr::Identity;
-    let k: Kleisli<Identity<i32>, _, _> = Kleisli::new().append(|a: i32| Program::new(a.to_string()));
-    assert_eq!(k.run(42), Program::new("42".to_string()));
+    let k: Kleisli<Identity<i32>, _, _> = Kleisli::new().append(|a: i32| point(a.to_string()));
+    assert_eq!(k.run(42), point("42".to_string()));
 }
