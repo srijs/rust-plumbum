@@ -1,6 +1,6 @@
 [package]
 name = "operational"
-version = "0.0.4"
+version = "0.0.5"
 authors = ["Sam Rijs <srijs@airpost.net>"]
 description = "Operational Monad"
 license = "MIT"
