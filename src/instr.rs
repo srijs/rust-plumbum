@@ -1,10 +1,17 @@
 use super::{Program, point};
+use super::Kleisli;
 
 /// The trait for an instruction set.
 ///
 /// Holds its return type as an associated type.
 pub trait Instr {
     type Return;
+
+    /// Lift the instruction into a program.
+    fn to_program<'a>(self) -> Program<'a, Self, Self::Return> where Self: Sized {
+        Program::Then(Box::new(self), Kleisli::new())
+    }
+
 }
 
 /// The instruction that does nothing.

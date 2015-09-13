@@ -93,8 +93,3 @@ impl<'a, I: 'a + Instr, A: fmt::Debug> fmt::Debug for Program<'a, I, A> {
 pub fn point<'a, I: 'a + Instr, A>(a: A) -> Program<'a, I, A> {
     Program::Pure(Box::new(a))
 }
-
-/// Lift an instruction into a program.
-pub fn lift<'a, I: 'a + Instr>(i: I) -> Program<'a, I, I::Return> {
-    Program::Then(Box::new(i), Kleisli::new())
-}
