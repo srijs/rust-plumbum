@@ -17,6 +17,9 @@ use instr::Instr;
 mod kleisli;
 pub use kleisli::Kleisli;
 
+mod seq;
+pub use seq::*;
+
 /// Represents a program, i.e. a sequence of instructions.
 ///
 /// - The _instructions_ are given by the type `I`.
