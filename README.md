@@ -1,2 +1,2 @@
-# rust-operational
-Operational Monads for Rust
+# rust-plumbum
+Conduit-like data processing library for Rust

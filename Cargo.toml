@@ -1,9 +1,9 @@
 [package]
-name = "operational"
+name = "plumbum"
 version = "0.0.5"
 authors = ["Sam Rijs <srijs@airpost.net>"]
-description = "Operational Monad"
+description = "Conduit-like data processing library"
 license = "MIT"
-repository = "https://github.com/srijs/rust-operational"
-documentation = "https://srijs.github.io/rust-operational/operational/"
-keywords = ["free", "operational", "monad", "program", "interpreter"]
+repository = "https://github.com/srijs/rust-plumbum"
+documentation = "https://srijs.github.io/rust-plumbum/plumbum/"
+keywords = ["conduit", "pipe", "data", "flow", "input", "output"]

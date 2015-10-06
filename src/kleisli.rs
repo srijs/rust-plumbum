@@ -2,45 +2,43 @@ use std::mem::transmute;
 use std::marker::PhantomData;
 use std::collections::VecDeque;
 
-use super::instr::Instr;
-use super::{Program, point};
+use super::{ConduitM, point};
 
-/// The Kleisli arrow from `A` to `Program<I, B>`.
-pub struct Kleisli<'a, I: Instr<Return=A>, A, B> {
+/// The Kleisli arrow from `A` to `ConduitM<I, O, B>`.
+pub struct Kleisli<'a, A, I, O, B> {
     phan: PhantomData<(A, B)>,
-    deque: VecDeque<Box<Fn(Box<()>) -> Program<'a, I, ()> + 'a>>
+    deque: VecDeque<Box<Fn(Box<()>) -> ConduitM<'a, I, O, ()> + 'a>>
 }
 
-unsafe fn fn_transmute<'a, I: Instr, A, B, F: 'a + Fn(Box<A>) -> Program<'a, I, B>>(f: F)
-    -> Box<Fn(Box<()>) -> Program<'a, I, ()> + 'a> {
+unsafe fn fn_transmute<'a, I, O, A, B, F: 'a + Fn(Box<A>) -> ConduitM<'a, I, O, B>>(f: F)
+    -> Box<Fn(Box<()>) -> ConduitM<'a, I, O, ()> + 'a> {
     Box::new(move |ptr| transmute(f(transmute::<Box<()>, Box<A>>(ptr))))
 }
 
-impl<'a, I: Instr<Return=A>, A> Kleisli<'a, I, A, A> {
+impl<'a, I, O, A> Kleisli<'a, A, I, O, A> {
     /// Creates the identity arrow.
     ///
     /// # Example
     ///
     /// ```rust
-    /// use operational::Kleisli;
-    /// use operational::instr::identity;
+    /// use plumbum::{Kleisli, point};
     ///
-    /// let k = Kleisli::new();
-    /// assert_eq!(k.run(42), identity(42));
+    /// let k: Kleisli<i32, (), (), i32> = Kleisli::new();
+    /// assert_eq!(k.run(42), point(42));
     /// ```
-    pub fn new() -> Kleisli<'a, I, A, A> {
+    pub fn new() -> Kleisli<'a, A, I, O, A> {
         Kleisli { phan: PhantomData, deque: VecDeque::new() }
     }
 }
 
-pub fn append_boxed<'a, I: 'a + Instr<Return=A>, A, B, C, F>
-    (mut k: Kleisli<'a, I, A, B>, f: F) -> Kleisli<'a, I, A, C>
-    where F: 'a + Fn(Box<B>) -> Program<'a, I, C> {
+pub fn append_boxed<'a, I, O, A, B, C, F>
+    (mut k: Kleisli<'a, A, I, O, B>, f: F) -> Kleisli<'a, A, I, O, C>
+    where F: 'a + Fn(Box<B>) -> ConduitM<'a, I, O, C> {
     k.deque.push_back(unsafe { fn_transmute(f) });
     Kleisli { phan: PhantomData, deque: k.deque }
 }
 
-impl<'a, I: 'a + Instr<Return=A>, A, B> Kleisli<'a, I, A, B> {
+impl<'a, I, O, A, B> Kleisli<'a, A, I, O, B> {
 
     /// Appends the given function to the tail of the arrow.
     /// This corresponds to closure composition at the codomain (post-composition).
@@ -48,22 +46,21 @@ impl<'a, I: 'a + Instr<Return=A>, A, B> Kleisli<'a, I, A, B> {
     /// # Example
     ///
     /// ```rust
-    /// use operational::{Kleisli, point};
-    /// use operational::instr::identity;
+    /// use plumbum::{Kleisli, point};
     ///
-    /// let k = Kleisli::new().append(|x| point(x + 1));
-    /// assert_eq!(k.run(42), identity(43));
+    /// let k: Kleisli<i32, (), (), i32> = Kleisli::new().append(|x| point(x + 1));
+    /// assert_eq!(k.run(42), point(43));
     /// ```
-    pub fn append<F, C>(self, f: F) -> Kleisli<'a, I, A, C>
-        where F: 'a + Fn(B) -> Program<'a, I, C> {
+    pub fn append<F, C>(self, f: F) -> Kleisli<'a, A, I, O, C>
+        where F: 'a + Fn(B) -> ConduitM<'a, I, O, C> {
         append_boxed(self, move |b| f(*b))
     }
 
     /// Given an input, runs the arrow to completion and return
     /// the resulting program.
-    pub fn run(mut self, a: A) -> Program<'a, I, B> {
+    pub fn run(mut self, a: A) -> ConduitM<'a, I, O, B> {
         unsafe {
-            let mut r = transmute::<Program<'a, I, A>, Program<'a, I, ()>>(point(a));
+            let mut r = transmute::<ConduitM<'a, I, O, A>, ConduitM<'a, I, O, ()>>(point(a));
             loop {
                 match self.deque.pop_front() {
                     None => return transmute(r),
@@ -77,14 +74,12 @@ impl<'a, I: 'a + Instr<Return=A>, A, B> Kleisli<'a, I, A, B> {
 
 #[test]
 fn kleisli_run_plus_one() {
-    use super::instr::Identity;
-    let k: Kleisli<Identity<i32>, _, _> = Kleisli::new().append(|a| point(a + 1));
+    let k: Kleisli<i32, (), (), i32> = Kleisli::new().append(|a| point(a + 1));
     assert_eq!(k.run(42), point(43));
 }
 
 #[test]
 fn kleisli_run_to_string() {
-    use super::instr::Identity;
-    let k: Kleisli<Identity<i32>, _, _> = Kleisli::new().append(|a: i32| point(a.to_string()));
+    let k: Kleisli<i32, (), (), String> = Kleisli::new().append(|a: i32| point(a.to_string()));
     assert_eq!(k.run(42), point("42".to_string()));
 }
