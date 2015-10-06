@@ -1,13 +1,3 @@
-//! The operational library makes it easy to implement monads with tricky control flow.
-//!
-//! This is very useful for: writing web applications in a sequential style,
-//! programming games with a uniform interface for human and AI players and easy replay,
-//! implementing fast parser monads, designing monadic DSLs, etc.
-//!
-//! A thorough introduction to the ideas behind this library is given in
-//! ["The Operational Monad Tutorial"](http://apfelmus.nfshost.com/articles/operational-monad.html),
-//! published in [Issue 15 of the Monad.Reader](http://themonadreader.wordpress.com/2010/01/26/issue-15/).
-
 use std::fmt;
 
 mod kleisli;
