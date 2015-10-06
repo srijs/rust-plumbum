@@ -39,7 +39,7 @@ pub type Sink<'a, I, A> = ConduitM<'a, I, Void, A>;
 impl<'a, I, O, A> ConduitM<'a, I, O, A> {
 
     fn and_then_boxed<B, F>(self, js: F) -> ConduitM<'a, I, O, B>
-        where F: 'a + Fn(Box<A>) -> ConduitM<'a, I, O, B> {
+        where F: 'a + FnOnce(Box<A>) -> ConduitM<'a, I, O, B> {
         match self {
             ConduitM::Pure(a) => js(a),
             ConduitM::Await(is) => ConduitM::Await(kleisli::append_boxed(is, js)),
@@ -54,7 +54,7 @@ impl<'a, I, O, A> ConduitM<'a, I, O, A> {
     ///
     /// Equivalent to the monadic `>>=` operator.
     pub fn and_then<B, F>(self, js: F) -> ConduitM<'a, I, O, B>
-        where F: 'a + Fn(A) -> ConduitM<'a, I, O, B> {
+        where F: 'a + FnOnce(A) -> ConduitM<'a, I, O, B> {
         match self {
             ConduitM::Pure(a) => js(*a),
             ConduitM::Await(is) => ConduitM::Await(is.append(js)),
@@ -69,7 +69,7 @@ impl<'a, I, O, A> ConduitM<'a, I, O, A> {
     ///
     /// Equivalent to the monadic `liftM`.
     pub fn map<B, F>(self, f: F) -> ConduitM<'a, I, O, B>
-        where F: 'a + Fn(A) -> B {
+        where F: 'a + FnOnce(A) -> B {
         self.and_then(move |a| f(a).into())
     }
 
@@ -128,7 +128,7 @@ pub fn produce<'a, I, O>(o: O) -> ConduitM<'a, I, O, ()> {
 ///
 /// assert_eq!(connect(src, sink), 43);
 /// ```
-pub fn connect<A, B>(mut src: Source<A>, mut sink: Sink<A, B>) -> B {
+pub fn connect<'a, A: 'static, B>(mut src: Source<'a, A>, mut sink: Sink<'a, A, B>) -> B {
     loop {
         let (next_src, next_sink) = match sink {
             ConduitM::Pure(b_box) => {
