@@ -3,6 +3,8 @@ use std::fmt;
 mod kleisli;
 pub use kleisli::Kleisli;
 
+pub mod extra;
+
 mod pipe;
 pub use pipe::*;
 
