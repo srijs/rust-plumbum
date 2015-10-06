@@ -28,6 +28,19 @@ pub enum ConduitM<'a, I, O, A> {
 /// without consuming any input or producing a final result.
 pub type Source<'a, O> = ConduitM<'a, (), O, ()>;
 
+impl<'a, O> ConduitM<'a, (), O, ()> {
+    /// Generalize a `Source` by universally quantifying the input type.
+    pub fn to_producer<I>(self) -> ConduitM<'a, I, O, ()> where O: 'static {
+        match self {
+            ConduitM::Pure(x) => ConduitM::Pure(x),
+            ConduitM::Await(k) => k.run(Some(())).to_producer(),
+            ConduitM::Yield(o, k) => ConduitM::Yield(o, Kleisli::new().append(move |_| {
+                k.run(()).to_producer()
+            }))
+        }
+    }
+}
+
 /// Consumes a stream of input values and produces a stream of output values,
 /// without producing a final result.
 pub type Conduit<'a, I, O> = ConduitM<'a, I, O, ()>;
@@ -35,6 +48,13 @@ pub type Conduit<'a, I, O> = ConduitM<'a, I, O, ()>;
 /// Consumes a stream of input values and produces a final result,
 /// without producing any output.
 pub type Sink<'a, I, A> = ConduitM<'a, I, Void, A>;
+
+impl<'a, I, A> ConduitM<'a, I, Void, A> {
+    /// Generalize a `Sink` by universally quantifying the output type.
+    pub fn to_consumer<O>(self) -> ConduitM<'a, I, O, A> {
+        unsafe { std::mem::transmute(self) }
+    }
+}
 
 impl<'a, I, O, A> ConduitM<'a, I, O, A> {
 
