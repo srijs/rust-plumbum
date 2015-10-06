@@ -8,8 +8,6 @@
 //! ["The Operational Monad Tutorial"](http://apfelmus.nfshost.com/articles/operational-monad.html),
 //! published in [Issue 15 of the Monad.Reader](http://themonadreader.wordpress.com/2010/01/26/issue-15/).
 
-extern crate functor;
-
 use std::fmt;
 
 mod kleisli;
