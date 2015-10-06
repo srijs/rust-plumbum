@@ -153,3 +153,21 @@ pub fn connect<'a, A: 'static, B>(mut src: Source<'a, A>, mut sink: Sink<'a, A, 
         sink = next_sink;
     }
 }
+
+/// Combines two Conduits together into a new Conduit.
+pub fn fuse<'a, A, B, C, R>(left: Conduit<'a, A, B>, right: ConduitM<'a, B, C, R>) -> ConduitM<'a, A, C, R>
+    where A: 'static, B: 'static, C: 'static, R: 'a {
+    match right {
+        ConduitM::Pure(r) => ConduitM::Pure(r),
+        ConduitM::Yield(c, k) => ConduitM::Yield(c, Kleisli::new().append(move |_| {
+            fuse(left, k.run(()))
+        })),
+        ConduitM::Await(k_right) => match left {
+            ConduitM::Pure(_) => fuse(().into(), k_right.run(None)),
+            ConduitM::Yield(b, k_left) => fuse(k_left.run(()), k_right.run(Some(*b))),
+            ConduitM::Await(k_left) => ConduitM::Await(Kleisli::new().append(move |a| {
+                fuse(k_left.run(a), ConduitM::Await(k_right))
+            }))
+        }
+    }
+}
