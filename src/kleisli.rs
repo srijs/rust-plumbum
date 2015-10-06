@@ -2,7 +2,7 @@ use std::mem::transmute;
 use std::marker::PhantomData;
 use std::collections::VecDeque;
 
-use super::{ConduitM, point};
+use super::ConduitM;
 
 /// The Kleisli arrow from `A` to `ConduitM<I, O, B>`.
 pub struct Kleisli<'a, A, I, O, B> {
@@ -21,10 +21,10 @@ impl<'a, I, O, A> Kleisli<'a, A, I, O, A> {
     /// # Example
     ///
     /// ```rust
-    /// use plumbum::{Kleisli, point};
+    /// use plumbum::Kleisli;
     ///
     /// let k: Kleisli<i32, (), (), i32> = Kleisli::new();
-    /// assert_eq!(k.run(42), point(42));
+    /// assert_eq!(k.run(42), 42.into());
     /// ```
     pub fn new() -> Kleisli<'a, A, I, O, A> {
         Kleisli { phan: PhantomData, deque: VecDeque::new() }
@@ -46,10 +46,10 @@ impl<'a, I, O, A, B> Kleisli<'a, A, I, O, B> {
     /// # Example
     ///
     /// ```rust
-    /// use plumbum::{Kleisli, point};
+    /// use plumbum::Kleisli;
     ///
-    /// let k: Kleisli<i32, (), (), i32> = Kleisli::new().append(|x| point(x + 1));
-    /// assert_eq!(k.run(42), point(43));
+    /// let k: Kleisli<i32, (), (), i32> = Kleisli::new().append(|x: i32| (x + 1).into());
+    /// assert_eq!(k.run(42), 43.into());
     /// ```
     pub fn append<F, C>(self, f: F) -> Kleisli<'a, A, I, O, C>
         where F: 'a + Fn(B) -> ConduitM<'a, I, O, C> {
@@ -60,7 +60,7 @@ impl<'a, I, O, A, B> Kleisli<'a, A, I, O, B> {
     /// the resulting program.
     pub fn run(mut self, a: A) -> ConduitM<'a, I, O, B> {
         unsafe {
-            let mut r = transmute::<ConduitM<'a, I, O, A>, ConduitM<'a, I, O, ()>>(point(a));
+            let mut r = transmute::<ConduitM<'a, I, O, A>, ConduitM<'a, I, O, ()>>(a.into());
             loop {
                 match self.deque.pop_front() {
                     None => return transmute(r),
@@ -74,12 +74,13 @@ impl<'a, I, O, A, B> Kleisli<'a, A, I, O, B> {
 
 #[test]
 fn kleisli_run_plus_one() {
-    let k: Kleisli<i32, (), (), i32> = Kleisli::new().append(|a| point(a + 1));
-    assert_eq!(k.run(42), point(43));
+    let k: Kleisli<i32, (), (), i32> = Kleisli::new().append(|a: i32| (a + 1).into());
+    assert_eq!(k.run(42), 43.into());
 }
 
 #[test]
 fn kleisli_run_to_string() {
-    let k: Kleisli<i32, (), (), String> = Kleisli::new().append(|a: i32| point(a.to_string()));
-    assert_eq!(k.run(42), point("42".to_string()));
+    let k: Kleisli<i32, (), (), String> =
+        Kleisli::new().append(|a: i32| (a.to_string()).into());
+    assert_eq!(k.run(42), "42".to_string().into());
 }

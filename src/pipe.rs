@@ -37,10 +37,11 @@ macro_rules! pipe {
         $e.and_then(move |$p : $ty| pipe! { $( $t )* } )
     );
 
-    (return $e: expr) => ($crate::point($e));
-
     ($e: expr ; $( $t: tt )*) => (
         $e.and_then(move |_| pipe! { $( $t )* } )
     );
+
+    (return $e: expr) => (From::from($e))
+
 
 }

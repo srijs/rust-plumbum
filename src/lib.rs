@@ -10,6 +10,8 @@ enum Void {}
 
 /// Represents a conduit, i.e. a sequence of await/yield actions.
 ///
+/// - `I` is the type of values the conduit consumes from upstream.
+/// - `O` is the type of values the conduit passes downstream.
 /// - `A` is the return type of the conduit.
 pub enum ConduitM<'a, I, O, A> {
     /// The case `Pure(a)` means that the conduit contains requires further action and just returns the result `a`.
@@ -66,7 +68,7 @@ impl<'a, I, O, A> ConduitM<'a, I, O, A> {
     /// Equivalent to the monadic `liftM`.
     pub fn map<B, F>(self, f: F) -> ConduitM<'a, I, O, B>
         where F: 'a + Fn(A) -> B {
-        self.and_then(move |a| point(f(a)))
+        self.and_then(move |a| f(a).into())
     }
 
 }
@@ -90,12 +92,10 @@ impl<'a, I, O, A: fmt::Debug> fmt::Debug for ConduitM<'a, I, O, A> {
     }
 }
 
-/// Using a value, constructs the empty conduit,
-/// i.e. a conduit that directly returns that value.
-///
-/// Equivalent to the monadic `return`.
-pub fn point<'a, I, O, A>(a: A) -> ConduitM<'a, I, O, A> {
-    ConduitM::Pure(Box::new(a))
+impl<'a, I, O, A> From<A> for ConduitM<'a, I, O, A> {
+    fn from(a: A) -> ConduitM<'a, I, O, A> {
+        ConduitM::Pure(Box::new(a))
+    }
 }
 
 /// Wait for a single input value from upstream.
