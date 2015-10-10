@@ -20,7 +20,7 @@ enum Void {}
 pub enum ConduitM<'a, I, O, A> {
     /// The case `Pure(a)` means that the conduit contains no further actions and just returns the result `a`.
     Pure(Box<A>),
-    /// The case `Defer(k)` means that the conduit needs another iteration to make prpgress,
+    /// The case `Defer(k)` means that the conduit needs another iteration to make progress,
     /// and the remaining (suspended) program is given by the kleisli arrow `k`
     Defer(Kleisli<'a, (), I, O, A>),
     /// The case `Await(k)` means that the conduit waits for a value of type `I`,
@@ -275,8 +275,8 @@ pub fn produce<'a, I, O>(o: O) -> ConduitM<'a, I, O, ()> {
 }
 
 /// Defers a conduit action. Can be used to introduce artifical laziness.
-pub fn defer<'a, I, O, A, F: 'a + FnOnce() -> ConduitM<'a, I, O, A>>(f: F) -> ConduitM<'a, I, O, A> {
-    ConduitM::Defer(Kleisli::new().append(|_| f()))
+pub fn defer<'a, I, O>() -> ConduitM<'a, I, O, ()> {
+    ConduitM::Defer(Kleisli::new())
 }
 
 /// Provide for a stream of data that can be flushed.

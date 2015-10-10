@@ -16,7 +16,7 @@ fn read<R: Read>(r: &mut R, z: usize) -> Result<Vec<u8>> {
 
 /// A conduit that produces bytes it reads from the given `Read`.
 pub fn reader<'a, R: 'a + Read>(mut r: R, z: usize) -> ConduitM<'a, (), Vec<u8>, Result<()>> {
-    defer(move || {
+    defer().and_then(move |_| {
         match read(&mut r, z) {
             Err(e) => Err(e).into(),
             Ok(v) => {
