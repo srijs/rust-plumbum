@@ -10,6 +10,9 @@ pub use kleisli::Kleisli;
 mod pipe;
 pub use pipe::*;
 
+mod fuse;
+pub use fuse::*;
+
 enum Void {}
 
 /// Represents a conduit, i.e. a sequence of await/yield actions.

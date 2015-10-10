@@ -30,15 +30,15 @@ macro_rules! pipe {
     );
 
     (for $p: pat = $e: expr ; $( $t: tt )*) => (
-        $e.and_then(move |$p| pipe! { $( $t )* } )
+        $crate::ConduitM::and_then($e, move |$p| pipe! { $( $t )* } )
     );
 
     (for $p: ident : $ty: ty = $e: expr ; $( $t: tt )*) => (
-        $e.and_then(move |$p : $ty| pipe! { $( $t )* } )
+        $crate::ConduitM::and_then($e, move |$p : $ty| pipe! { $( $t )* } )
     );
 
     ($e: expr ; $( $t: tt )*) => (
-        $e.and_then(move |_| pipe! { $( $t )* } )
+        $crate::ConduitM::and_then($e, move |_| pipe! { $( $t )* } )
     );
 
     (return $e: expr) => (From::from($e))
