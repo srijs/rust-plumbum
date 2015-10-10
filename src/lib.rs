@@ -54,7 +54,7 @@ impl<'a, O> ConduitM<'a, (), O, ()> {
     ///
     /// assert_eq!(src.connect(sink), 43);
     /// ```
-    pub fn connect<B>(mut self, mut sink: Sink<'a, O, B>) -> B where O: 'static {
+    pub fn connect<A>(mut self, mut sink: Sink<'a, O, A>) -> A where O: 'static {
         loop {
             let (next_src, next_sink) = match sink {
                 ConduitM::Pure(b_box) => {
@@ -102,8 +102,8 @@ impl<'a, I, O> ConduitM<'a, I, O, ()> {
     ///
     /// assert_eq!(src.fuse(conduit).connect(sink), 44);
     /// ```
-    pub fn fuse<C, R>(self, other: ConduitM<'a, O, C, R>) -> ConduitM<'a, I, C, R>
-        where I: 'static, O: 'static, C: 'static, R: 'a {
+    pub fn fuse<P, A>(self, other: ConduitM<'a, O, P, A>) -> ConduitM<'a, I, P, A>
+        where I: 'static, O: 'static, P: 'static, A: 'a {
         match other {
             ConduitM::Pure(r) => ConduitM::Pure(r),
             ConduitM::Yield(c, k) => ConduitM::Yield(c, Kleisli::new().append(move |_| {
