@@ -48,7 +48,8 @@
 //! use plumbum::*;
 //!
 //! fn source<'a>() -> Source<'a, i32> {
-//!     produce(1)
+//!     defer()
+//!     .and(produce(1))
 //!     .and(produce(2))
 //!     .and(produce(3))
 //!     .and(produce(4))
