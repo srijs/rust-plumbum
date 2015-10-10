@@ -34,17 +34,19 @@
 //!
 //! ## Primitives
 //!
-//! There are three core primitives:
+//! There are four core primitives:
 //!
 //! 1. `consume` takes a single value from upstream, if available.
 //! 2. `produce` sends a single value downstream.
+//! 3. `leftover` puts a single value back in the upstream queue,
+//!    ready to be read by the next call to `consume`.
 //! 3. `defer` introduces a point of lazyiness, artifically deferring all further actions.
 //!
 //! ## Example
 //!
 //! ```
 //! #[macro_use] extern crate plumbum;
-//! use plumbum::{Source, Conduit, Sink, consume, produce};
+//! use plumbum::*;
 //!
 //! fn source<'a>() -> Source<'a, i32> {
 //!     pipe!{
@@ -62,6 +64,7 @@
 //!         match (oi1, oi2) {
 //!             (Some(i1), Some(i2)) => pipe!{
 //!                 produce(format!("({},{})", i1, i2));
+//!                 leftover(i2);
 //!                 conduit();
 //!             },
 //!             _ => pipe!{}
@@ -73,7 +76,7 @@
 //!     pipe!{
 //!         for ostr = consume();
 //!         match ostr {
-//!             None => "".to_string().into(),
+//!             None => "...".to_string().into(),
 //!             Some(str) => pipe!{
 //!                 for next = sink();
 //!                 return format!("{}:{}", str, next)
@@ -84,7 +87,7 @@
 //!
 //! fn main() {
 //!     let res = source().fuse(conduit()).connect(sink());
-//!     assert_eq!(res, "(1,2):(3,4):")
+//!     assert_eq!(res, "(1,2):(2,3):(3,4):...")
 //! }
 use std::fmt;
 use std::iter::FromIterator;
@@ -119,7 +122,10 @@ pub enum ConduitM<'a, I, O, A> {
     Await(Kleisli<'a, Option<I>, I, O, A>),
     /// The case `Yield(o, k)` means that the conduit yields a value of type `O`,
     /// and the remaining (suspended) program is given by the kleisli arrow `k`.
-    Yield(Box<O>, Kleisli<'a, (), I, O, A>)
+    Yield(Box<O>, Kleisli<'a, (), I, O, A>),
+    /// The case `Leftover(i, k)` means that the conduit has a leftover value of type `I`,
+    /// and the remaining (suspended) program is given by the kleisli arrow `k`.
+    Leftover(Box<I>, Kleisli<'a, (), I, O, A>)
 }
 
 /// Provides a stream of output values,
@@ -139,6 +145,9 @@ impl<'a, O> ConduitM<'a, (), O, ()> {
                 k.run(Some(())).to_producer()
             })),
             ConduitM::Yield(o, k) => ConduitM::Yield(o, Kleisli::new().append(move |_| {
+                k.run(()).to_producer()
+            })),
+            ConduitM::Leftover(_, k) => ConduitM::Defer(Kleisli::new().append(move |_| {
                 k.run(()).to_producer()
             }))
         }
@@ -179,10 +188,16 @@ impl<'a, O> ConduitM<'a, (), O, ()> {
                         },
                         ConduitM::Yield(a_box, k_src) => {
                             (k_src.run(()), k_sink.run(Some(*a_box)))
+                        },
+                        ConduitM::Leftover(_, k_src) => {
+                            (k_src.run(()), ConduitM::Await(k_sink))
                         }
                     }
                 },
-                ConduitM::Yield(_, _) => unreachable!()
+                ConduitM::Yield(_, _) => unreachable!(),
+                ConduitM::Leftover(o_box, k_sink) => {
+                    (ConduitM::Yield(o_box, Kleisli::new().append(move |_| self)), k_sink.run(()))
+                }
             };
             self = next_src;
             sink = next_sink;
@@ -221,12 +236,18 @@ impl<'a, I, O> ConduitM<'a, I, O, ()> {
             ConduitM::Yield(c, k) => ConduitM::Yield(c, Kleisli::new().append(move |_| {
                 self.fuse(k.run(()))
             })),
+            ConduitM::Leftover(o_box, k_right) => ConduitM::Defer(Kleisli::new().append(move |_| {
+                ConduitM::Yield(o_box, Kleisli::new().append(move |_| self)).fuse(k_right.run(()))
+            })),
             ConduitM::Await(k_right) => match self {
                 ConduitM::Pure(_) => ConduitM::fuse(().into(), k_right.run(None)),
                 ConduitM::Defer(k_left) => ConduitM::Defer(Kleisli::new().append(move |_| {
                     k_left.run(()).fuse(ConduitM::Await(k_right))
                 })),
                 ConduitM::Yield(b, k_left) => k_left.run(()).fuse(k_right.run(Some(*b))),
+                ConduitM::Leftover(i_box, k_left) => ConduitM::Leftover(i_box, Kleisli::new().append(move |_| {
+                    k_left.run(()).fuse(ConduitM::Await(k_right))
+                })),
                 ConduitM::Await(k_left) => ConduitM::Await(Kleisli::new().append(move |a| {
                     k_left.run(a).fuse(ConduitM::Await(k_right))
                 }))
@@ -294,7 +315,8 @@ impl<'a, I, O, A> ConduitM<'a, I, O, A> {
             ConduitM::Pure(a) => js(a),
             ConduitM::Defer(is) => ConduitM::Defer(kleisli::append_boxed(is, js)),
             ConduitM::Await(is) => ConduitM::Await(kleisli::append_boxed(is, js)),
-            ConduitM::Yield(o, is) => ConduitM::Yield(o, kleisli::append_boxed(is, js))
+            ConduitM::Yield(o, is) => ConduitM::Yield(o, kleisli::append_boxed(is, js)),
+            ConduitM::Leftover(i, is) => ConduitM::Leftover(i, kleisli::append_boxed(is, js))
         }
     }
 
@@ -308,7 +330,8 @@ impl<'a, I, O, A> ConduitM<'a, I, O, A> {
             ConduitM::Pure(a) => js(*a),
             ConduitM::Defer(is) => ConduitM::Defer(is.append(js)),
             ConduitM::Await(is) => ConduitM::Await(is.append(js)),
-            ConduitM::Yield(o, is) => ConduitM::Yield(o, is.append(js))
+            ConduitM::Yield(o, is) => ConduitM::Yield(o, is.append(js)),
+            ConduitM::Leftover(i, is) => ConduitM::Leftover(i, is.append(js))
         }
     }
 
@@ -338,7 +361,8 @@ impl<'a, I, O, A: fmt::Debug> fmt::Debug for ConduitM<'a, I, O, A> {
             &ConduitM::Pure(ref a) => write!(f, "Pure({:?})", a),
             &ConduitM::Defer(_) => write!(f, "Defer(..)"),
             &ConduitM::Await(_) => write!(f, "Await(..)"),
-            &ConduitM::Yield(_, _) => write!(f, "Yield(..)")
+            &ConduitM::Yield(_, _) => write!(f, "Yield(..)"),
+            &ConduitM::Leftover(_, _) => write!(f, "Leftover(..)")
         }
     }
 }
@@ -367,6 +391,12 @@ pub fn produce<'a, I, O>(o: O) -> ConduitM<'a, I, O, ()> {
 /// Defers a conduit action. Can be used to introduce artifical laziness.
 pub fn defer<'a, I, O>() -> ConduitM<'a, I, O, ()> {
     ConduitM::Defer(Kleisli::new())
+}
+
+/// Provide a single piece of leftover input to be consumed by the
+/// next component in the current binding.
+pub fn leftover<'a, I, O>(i: I) -> ConduitM<'a, I, O, ()> {
+    ConduitM::Leftover(Box::new(i), Kleisli::new())
 }
 
 /// Provide for a stream of data that can be flushed.
