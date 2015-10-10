@@ -1,9 +1,9 @@
 [package]
 name = "plumbum"
-version = "0.0.5"
+version = "0.0.6"
 authors = ["Sam Rijs <srijs@airpost.net>"]
 description = "Conduit-like data processing library"
 license = "MIT"
 repository = "https://github.com/srijs/rust-plumbum"
 documentation = "https://srijs.github.io/rust-plumbum/plumbum/"
-keywords = ["conduit", "pipe", "data", "flow", "processing"]
+keywords = ["conduit", "pipe", "stream", "data", "flow", "processing"]
