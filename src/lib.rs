@@ -134,16 +134,16 @@ impl<'a, O> ConduitM<'a, (), O, ()> {
     pub fn to_producer<I>(self) -> ConduitM<'a, I, O, ()> where O: 'static {
         match self {
             ConduitM::Pure(x) => ConduitM::Pure(x),
-            ConduitM::Defer(k) => ConduitM::Defer(Kleisli::new().append(move |_| {
+            ConduitM::Defer(k) => ConduitM::Defer(Kleisli::from(move |_| {
                 k.run(()).to_producer()
             })),
-            ConduitM::Await(k) => ConduitM::Defer(Kleisli::new().append(move |_| {
+            ConduitM::Await(k) => ConduitM::Defer(Kleisli::from(move |_| {
                 k.run(Some(())).to_producer()
             })),
-            ConduitM::Yield(o, k) => ConduitM::Yield(o, Kleisli::new().append(move |_| {
+            ConduitM::Yield(o, k) => ConduitM::Yield(o, Kleisli::from(move |_| {
                 k.run(()).to_producer()
             })),
-            ConduitM::Leftover(_, k) => ConduitM::Defer(Kleisli::new().append(move |_| {
+            ConduitM::Leftover(_, k) => ConduitM::Defer(Kleisli::from(move |_| {
                 k.run(()).to_producer()
             }))
         }
@@ -165,8 +165,8 @@ impl<'a, O> ConduitM<'a, (), O, ()> {
     pub fn connect<A>(mut self, mut sink: Sink<'a, O, A>) -> A where O: 'static {
         loop {
             let (next_src, next_sink) = match sink {
-                ConduitM::Pure(b_box) => {
-                    return *b_box;
+                ConduitM::Pure(a) => {
+                    return *a;
                 },
                 ConduitM::Defer(k_sink) => {
                     (self, k_sink.run(()))
@@ -182,8 +182,8 @@ impl<'a, O> ConduitM<'a, (), O, ()> {
                         ConduitM::Await(k_src) => {
                             (k_src.run(Some(())), ConduitM::Await(k_sink))
                         },
-                        ConduitM::Yield(a_box, k_src) => {
-                            (k_src.run(()), k_sink.run(Some(*a_box)))
+                        ConduitM::Yield(o, k_src) => {
+                            (k_src.run(()), k_sink.run(Some(*o)))
                         },
                         ConduitM::Leftover(_, k_src) => {
                             (k_src.run(()), ConduitM::Await(k_sink))
@@ -191,8 +191,8 @@ impl<'a, O> ConduitM<'a, (), O, ()> {
                     }
                 },
                 ConduitM::Yield(_, _) => unreachable!(),
-                ConduitM::Leftover(o_box, k_sink) => {
-                    (ConduitM::Yield(o_box, Kleisli::new().append(move |_| self)), k_sink.run(()))
+                ConduitM::Leftover(o, k_sink) => {
+                    (ConduitM::Yield(o, Kleisli::from(move |_| self)), k_sink.run(()))
                 }
             };
             self = next_src;
@@ -226,25 +226,29 @@ impl<'a, I, O> ConduitM<'a, I, O, ()> {
         where I: 'static, O: 'static, P: 'static, A: 'a {
         match other {
             ConduitM::Pure(r) => ConduitM::Pure(r),
-            ConduitM::Defer(k) => ConduitM::Defer(Kleisli::new().append(move |_| {
+            ConduitM::Defer(k) => ConduitM::Defer(Kleisli::from(move |_| {
                 self.fuse(k.run(()))
             })),
-            ConduitM::Yield(c, k) => ConduitM::Yield(c, Kleisli::new().append(move |_| {
+            ConduitM::Yield(c, k) => ConduitM::Yield(c, Kleisli::from(move |_| {
                 self.fuse(k.run(()))
             })),
-            ConduitM::Leftover(o_box, k_right) => ConduitM::Defer(Kleisli::new().append(move |_| {
-                ConduitM::Yield(o_box, Kleisli::new().append(move |_| self)).fuse(k_right.run(()))
+            ConduitM::Leftover(o, k) => ConduitM::Defer(Kleisli::from(move |_| {
+                ConduitM::Yield(o, Kleisli::from(move |_| self)).fuse(k.run(()))
             })),
             ConduitM::Await(k_right) => match self {
-                ConduitM::Pure(_) => ConduitM::fuse(().into(), k_right.run(None)),
-                ConduitM::Defer(k_left) => ConduitM::Defer(Kleisli::new().append(move |_| {
+                ConduitM::Pure(_) => ConduitM::Defer(Kleisli::from(move |_| {
+                    Conduit::fuse(().into(), k_right.run(None))
+                })),
+                ConduitM::Defer(k_left) => ConduitM::Defer(Kleisli::from(move |_| {
                     k_left.run(()).fuse(ConduitM::Await(k_right))
                 })),
-                ConduitM::Yield(b, k_left) => k_left.run(()).fuse(k_right.run(Some(*b))),
-                ConduitM::Leftover(i_box, k_left) => ConduitM::Leftover(i_box, Kleisli::new().append(move |_| {
+                ConduitM::Yield(o, k_left) => ConduitM::Defer(Kleisli::from(move |_| {
+                    k_left.run(()).fuse(k_right.run(Some(*o)))
+                })),
+                ConduitM::Leftover(i, k_left) => ConduitM::Leftover(i, Kleisli::from(move |_| {
                     k_left.run(()).fuse(ConduitM::Await(k_right))
                 })),
-                ConduitM::Await(k_left) => ConduitM::Await(Kleisli::new().append(move |a| {
+                ConduitM::Await(k_left) => ConduitM::Await(Kleisli::from(move |a| {
                     k_left.run(a).fuse(ConduitM::Await(k_right))
                 }))
             }

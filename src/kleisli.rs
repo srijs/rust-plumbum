@@ -54,6 +54,21 @@ pub fn append_boxed<'a, I, O, A, B, C, F>
 
 impl<'a, I, O, A, B> Kleisli<'a, A, I, O, B> {
 
+    /// Wraps the given function into an arrow.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use plumbum::Kleisli;
+    ///
+    /// let k: Kleisli<i32, (), (), i32> = Kleisli::from(|x: i32| (x + 1).into());
+    /// assert_eq!(k.run(42), 43.into());
+    /// ```
+    pub fn from<F>(f: F) -> Kleisli<'a, A, I, O, B>
+        where F: 'a + FnOnce(A) -> ConduitM<'a, I, O, B> {
+        Kleisli::new().append(f)
+    }
+
     /// Appends the given function to the tail of the arrow.
     /// This corresponds to closure composition at the codomain (post-composition).
     ///
@@ -62,8 +77,9 @@ impl<'a, I, O, A, B> Kleisli<'a, A, I, O, B> {
     /// ```rust
     /// use plumbum::Kleisli;
     ///
-    /// let k: Kleisli<i32, (), (), i32> = Kleisli::new().append(|x: i32| (x + 1).into());
-    /// assert_eq!(k.run(42), 43.into());
+    /// let k: Kleisli<i32, (), (), i32> = Kleisli::from(|x: i32| (x + 1).into())
+    ///                                    .append(|x| (x * 2).into());
+    /// assert_eq!(k.run(42), 86.into());
     /// ```
     pub fn append<F, C>(self, f: F) -> Kleisli<'a, A, I, O, C>
         where F: 'a + FnOnce(B) -> ConduitM<'a, I, O, C> {
@@ -88,13 +104,13 @@ impl<'a, I, O, A, B> Kleisli<'a, A, I, O, B> {
 
 #[test]
 fn kleisli_run_plus_one() {
-    let k: Kleisli<i32, (), (), i32> = Kleisli::new().append(|a: i32| (a + 1).into());
+    let k: Kleisli<i32, (), (), i32> = Kleisli::from(|a: i32| (a + 1).into());
     assert_eq!(k.run(42), 43.into());
 }
 
 #[test]
 fn kleisli_run_to_string() {
     let k: Kleisli<i32, (), (), String> =
-        Kleisli::new().append(|a: i32| (a.to_string()).into());
+        Kleisli::from(|a: i32| (a.to_string()).into());
     assert_eq!(k.run(42), "42".to_string().into());
 }
