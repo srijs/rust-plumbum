@@ -1,4 +1,4 @@
-# Plumbum [![Build Status](https://travis-ci.org/srijs/rust-plumbum.svg)](https://travis-ci.org/srijs/rust-plumbum)
+# Plumbum [![Build Status](https://travis-ci.org/srijs/rust-plumbum.svg)](https://travis-ci.org/srijs/rust-plumbum) [![](https://img.shields.io/crates/v/plumbum.svg)](https://crates.io/crates/plumbum)  [![MIT License](https://img.shields.io/crates/l/plumbum.svg)](https://github.com/srijs/rust-plumbum/blob/master/LICENSE)
 
 *Plumbum* (latin for lead) is a port of Michael Snoyman's excellent
 [`conduit`](https://www.fpcomplete.com/user/snoyberg/library-documentation/conduit-overview)
