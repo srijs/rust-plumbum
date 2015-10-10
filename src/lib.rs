@@ -29,6 +29,7 @@ pub enum ConduitM<'a, I, O, A> {
 pub type Source<'a, O> = ConduitM<'a, (), O, ()>;
 
 impl<'a, O> ConduitM<'a, (), O, ()> {
+
     /// Generalize a `Source` by universally quantifying the input type.
     pub fn to_producer<I>(self) -> ConduitM<'a, I, O, ()> where O: 'static {
         match self {
@@ -39,11 +40,85 @@ impl<'a, O> ConduitM<'a, (), O, ()> {
             }))
         }
     }
+
+    /// Pulls data from the source and pushes it into the sink.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use plumbum::{Source, Sink, consume, produce};
+    ///
+    /// let src = produce(42);
+    ///
+    /// let sink = consume().map(|x| 1 + x.unwrap_or(0));
+    ///
+    /// assert_eq!(src.connect(sink), 43);
+    /// ```
+    pub fn connect<B>(mut self, mut sink: Sink<'a, O, B>) -> B where O: 'static {
+        loop {
+            let (next_src, next_sink) = match sink {
+                ConduitM::Pure(b_box) => {
+                    return *b_box;
+                },
+                ConduitM::Await(k_sink) => {
+                    match self {
+                        ConduitM::Pure(x) => {
+                            (ConduitM::Pure(x), k_sink.run(None))
+                        },
+                        ConduitM::Await(k_src) => {
+                            (k_src.run(Some(())), ConduitM::Await(k_sink))
+                        },
+                        ConduitM::Yield(a_box, k_src) => {
+                            (k_src.run(()), k_sink.run(Some(*a_box)))
+                        }
+                    }
+                },
+                ConduitM::Yield(_, _) => unreachable!()
+            };
+            self = next_src;
+            sink = next_sink;
+        }
+    }
+
 }
 
 /// Consumes a stream of input values and produces a stream of output values,
 /// without producing a final result.
 pub type Conduit<'a, I, O> = ConduitM<'a, I, O, ()>;
+
+impl<'a, I, O> ConduitM<'a, I, O, ()> {
+    /// Combines two Conduits together into a new Conduit.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use plumbum::{Source, Sink, consume, produce};
+    ///
+    /// let src = produce(42);
+    ///
+    /// let conduit = consume().and_then(|x| produce(1 + x.unwrap_or(0)));
+    ///
+    /// let sink = consume().map(|x| 1 + x.unwrap_or(0));
+    ///
+    /// assert_eq!(src.fuse(conduit).connect(sink), 44);
+    /// ```
+    pub fn fuse<C, R>(self, other: ConduitM<'a, O, C, R>) -> ConduitM<'a, I, C, R>
+        where I: 'static, O: 'static, C: 'static, R: 'a {
+        match other {
+            ConduitM::Pure(r) => ConduitM::Pure(r),
+            ConduitM::Yield(c, k) => ConduitM::Yield(c, Kleisli::new().append(move |_| {
+                self.fuse(k.run(()))
+            })),
+            ConduitM::Await(k_right) => match self {
+                ConduitM::Pure(_) => ConduitM::fuse(().into(), k_right.run(None)),
+                ConduitM::Yield(b, k_left) => k_left.run(()).fuse(k_right.run(Some(*b))),
+                ConduitM::Await(k_left) => ConduitM::Await(Kleisli::new().append(move |a| {
+                    k_left.run(a).fuse(ConduitM::Await(k_right))
+                }))
+            }
+        }
+    }
+}
 
 /// Consumes a stream of input values and produces a final result,
 /// without producing any output.
@@ -71,8 +146,6 @@ impl<'a, I, O, A> ConduitM<'a, I, O, A> {
     /// given a function from `A` to `ConduitM<I, O, B>`,
     /// passes the return value of the conduit to the function,
     /// and returns the resulting program.
-    ///
-    /// Equivalent to the monadic `>>=` operator.
     pub fn and_then<B, F>(self, js: F) -> ConduitM<'a, I, O, B>
         where F: 'a + FnOnce(A) -> ConduitM<'a, I, O, B> {
         match self {
@@ -86,8 +159,6 @@ impl<'a, I, O, A> ConduitM<'a, I, O, A> {
     /// Seen differently, it lifts a function from
     /// `A` to `B` into a function from `ConduitM<I, O, A>`
     /// to `ConduitM<I, O, B>`.
-    ///
-    /// Equivalent to the monadic `liftM`.
     pub fn map<B, F>(self, f: F) -> ConduitM<'a, I, O, B>
         where F: 'a + FnOnce(A) -> B {
         self.and_then(move |a| f(a).into())
@@ -133,61 +204,4 @@ pub fn consume<'a, I, O>() -> ConduitM<'a, I, O, Option<I>> {
 /// If the downstream component terminates, this call will never return control.
 pub fn produce<'a, I, O>(o: O) -> ConduitM<'a, I, O, ()> {
     ConduitM::Yield(Box::new(o), Kleisli::new())
-}
-
-/// Pulls data from the source and pushes it into the sink.
-///
-/// # Example
-///
-/// ```rust
-/// use plumbum::{Source, Sink, consume, produce, connect};
-///
-/// let src = produce(42);
-///
-/// let sink = consume().map(|x| 1 + x.unwrap_or(0));
-///
-/// assert_eq!(connect(src, sink), 43);
-/// ```
-pub fn connect<'a, A: 'static, B>(mut src: Source<'a, A>, mut sink: Sink<'a, A, B>) -> B {
-    loop {
-        let (next_src, next_sink) = match sink {
-            ConduitM::Pure(b_box) => {
-                return *b_box;
-            },
-            ConduitM::Await(k_sink) => {
-                match src {
-                    ConduitM::Pure(x) => {
-                        (ConduitM::Pure(x), k_sink.run(None))
-                    },
-                    ConduitM::Await(k_src) => {
-                        (k_src.run(Some(())), ConduitM::Await(k_sink))
-                    },
-                    ConduitM::Yield(a_box, k_src) => {
-                        (k_src.run(()), k_sink.run(Some(*a_box)))
-                    }
-                }
-            },
-            ConduitM::Yield(_, _) => unreachable!()
-        };
-        src = next_src;
-        sink = next_sink;
-    }
-}
-
-/// Combines two Conduits together into a new Conduit.
-pub fn fuse<'a, A, B, C, R>(left: Conduit<'a, A, B>, right: ConduitM<'a, B, C, R>) -> ConduitM<'a, A, C, R>
-    where A: 'static, B: 'static, C: 'static, R: 'a {
-    match right {
-        ConduitM::Pure(r) => ConduitM::Pure(r),
-        ConduitM::Yield(c, k) => ConduitM::Yield(c, Kleisli::new().append(move |_| {
-            fuse(left, k.run(()))
-        })),
-        ConduitM::Await(k_right) => match left {
-            ConduitM::Pure(_) => fuse(().into(), k_right.run(None)),
-            ConduitM::Yield(b, k_left) => fuse(k_left.run(()), k_right.run(Some(*b))),
-            ConduitM::Await(k_left) => ConduitM::Await(Kleisli::new().append(move |a| {
-                fuse(k_left.run(a), ConduitM::Await(k_right))
-            }))
-        }
-    }
 }

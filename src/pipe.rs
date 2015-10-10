@@ -16,7 +16,7 @@
 ///         for y = consume();
 ///         return x.unwrap_or(0) + y.unwrap_or(0)
 ///     };
-///     assert_eq!(connect(src, sink), 85);
+///     assert_eq!(src.connect(sink), 85);
 /// }
 #[macro_export]
 macro_rules! pipe {
