@@ -6,4 +6,4 @@ description = "Conduit-like data processing library"
 license = "MIT"
 repository = "https://github.com/srijs/rust-plumbum"
 documentation = "https://srijs.github.io/rust-plumbum/plumbum/"
-keywords = ["conduit", "pipe", "stream", "data", "flow", "processing"]
+keywords = ["conduit", "pipe", "stream", "data", "processing"]
