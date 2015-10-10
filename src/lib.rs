@@ -157,8 +157,7 @@ impl<'a, I, O> ConduitM<'a, I, O, ()> {
 }
 
 impl<'a, I, O: 'a> FromIterator<O> for ConduitM<'a, I, O, ()> {
-    fn from_iter<T: IntoIterator<Item=O>>(iterator: T) -> Self
-        where T::Item: 'a {
+    fn from_iter<T: IntoIterator<Item=O>>(iterator: T) -> Self {
         let mut conduit: Self = ().into();
         for x in iterator {
             conduit = conduit.and_then(move |_| produce(x));
