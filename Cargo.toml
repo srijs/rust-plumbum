@@ -1,6 +1,6 @@
 [package]
 name = "plumbum"
-version = "0.0.7"
+version = "0.0.8"
 authors = ["Sam Rijs <srijs@airpost.net>"]
 description = "Conduit-like data processing library"
 license = "MIT"
