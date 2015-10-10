@@ -85,7 +85,8 @@
 //!     assert_eq!(res, "(1,2):(2,3):(3,4):...")
 //! }
 use std::fmt;
-use std::iter::FromIterator;
+use std::mem::{replace, swap};
+use std::iter::{Extend, FromIterator};
 
 /// Interfacing with `std::io`.
 pub mod io;
@@ -260,13 +261,18 @@ impl<'a, I, O> ConduitM<'a, I, O, ()> {
 
 }
 
+impl<'a, I, O: 'a> Extend<O> for ConduitM<'a, I, O, ()> {
+    fn extend<T: IntoIterator<Item=O>>(&mut self, iterator: T)
+        where I: 'a, T::IntoIter: 'a {
+        let mut other = replace(self, ().into()).extend_iter(iterator.into_iter());
+        swap(self, &mut other);
+    }
+}
+
 impl<'a, I, O: 'a> FromIterator<O> for ConduitM<'a, I, O, ()> {
-    fn from_iter<T: IntoIterator<Item=O>>(iterator: T) -> Self {
-        let mut conduit: Self = ().into();
-        for x in iterator {
-            conduit = conduit.and_then(move |_| produce(x));
-        }
-        conduit
+    fn from_iter<T: IntoIterator<Item=O>>(iterator: T) -> Self
+        where I: 'a, T::IntoIter: 'a {
+        ConduitM::extend_iter(().into(), iterator.into_iter())
     }
 }
 
@@ -352,6 +358,17 @@ impl<'a, I, O, A> ConduitM<'a, I, O, A> {
     pub fn map<B, F>(self, f: F) -> ConduitM<'a, I, O, B>
         where F: 'a + FnOnce(A) -> B {
         self.and_then(move |a| f(a).into())
+    }
+
+    fn extend_iter<T: 'a + Iterator<Item=O>>(self, mut iterator: T) -> Self
+        where I: 'a, O: 'a, A: 'a {
+        self.and_then(|a| {
+            let next = iterator.next();
+            match next {
+                None => a.into(),
+                Some(x) => produce(x).and(a.into()).extend_iter(iterator)
+            }
+        })
     }
 
 }
