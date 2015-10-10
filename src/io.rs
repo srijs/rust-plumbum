@@ -1,6 +1,6 @@
 use std::io::{Result, Read, Write};
 
-use super::{ConduitM, produce, consume, Flush};
+use super::{ConduitM, produce, consume, defer, Flush};
 
 fn read<R: Read>(r: &mut R, z: usize) -> Result<Vec<u8>> {
     let mut v = Vec::with_capacity(z);
@@ -16,16 +16,18 @@ fn read<R: Read>(r: &mut R, z: usize) -> Result<Vec<u8>> {
 
 /// A conduit that produces bytes it reads from the given `Read`.
 pub fn reader<'a, R: 'a + Read>(mut r: R, z: usize) -> ConduitM<'a, (), Vec<u8>, Result<()>> {
-  match read(&mut r, z) {
-      Err(e) => Err(e).into(),
-      Ok(v) => {
-          if v.len() == 0 {
-              Ok(()).into()
-          } else {
-              produce(v).and_then(move |_| reader(r, z))
-          }
-      }
-  }
+    defer(move || {
+        match read(&mut r, z) {
+            Err(e) => Err(e).into(),
+            Ok(v) => {
+                if v.len() == 0 {
+                    Ok(()).into()
+                } else {
+                    produce(v).and_then(move |_| reader(r, z))
+                }
+            }
+        }
+    })
 }
 
 /// A conduit that consumes bytes and writes them to the given `Write`.
