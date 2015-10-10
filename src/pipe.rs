@@ -9,7 +9,6 @@
 ///     let src = pipe!{
 ///         produce(42);
 ///         produce(43);
-///         return ()
 ///     };
 ///     let sink = pipe!{
 ///         for x = consume();
@@ -41,7 +40,10 @@ macro_rules! pipe {
         $crate::ConduitM::and_then($e, move |_| pipe! { $( $t )* } )
     );
 
-    (return $e: expr) => (From::from($e))
+    (return $e: expr) => (From::from($e));
 
+    ($e: expr) => ($e);
+
+    () => (From::from(()));
 
 }

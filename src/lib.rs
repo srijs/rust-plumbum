@@ -1,3 +1,91 @@
+//! *Plumbum* (latin for lead) is a port of Michael Snoyman's excellent
+//! [`conduit`](https://www.fpcomplete.com/user/snoyberg/library-documentation/conduit-overview)
+//! library.
+//!
+//! It allows for production, transformation, and consumption of streams of
+//! data in constant memory.
+//! It can be used for processing files, dealing with network interfaces,
+//! or parsing structured data in an event-driven manner.
+//!
+//! ## Features
+//!
+//! - Large and possibly infinite streams can be processed in constant memory.
+//!
+//! - Chunks of data are dealt with lazily, one piece at a time, instead of needing to
+//!   read in the entire body at once.
+//!
+//! - The resulting components are pure computations, and allow us to retain
+//!   composability while dealing with the imperative world of I/O.
+//!
+//! ## Basics
+//!
+//! There are three main concepts:
+//!
+//! 1. A `Source` will produce a stream of data values and send them downstream.
+//! 2. A `Sink` will consume a stream of data values from upstream and produce a return value.
+//! 3. A `Conduit` will consume a stream of values from upstream and produces a new stream to send downstream.
+//!
+//! In order to combine these different components, we have connecting and fusing.
+//! The `connect` method will combine a `Source` and `Sink`,
+//! feeding the values produced by the former into the latter, and producing a final result.
+//! Fusion, on the other hand, will take two components and generate a new component.
+//! For example, fusing a `Conduit` and `Sink` together into a new `Sink`,
+//! will consume the same values as the original `Conduit` and produce the same result as the original `Sink`.
+//!
+//! ## Primitives
+//!
+//! There are three core primitives:
+//!
+//! 1. `consume` takes a single value from upstream, if available.
+//! 2. `produce` sends a single value downstream.
+//! 3. `defer` introduces a point of lazyiness, artifically deferring all further actions.
+//!
+//! ## Example
+//!
+//! ```
+//! #[macro_use] extern crate plumbum;
+//! use plumbum::{Source, Conduit, Sink, consume, produce};
+//!
+//! fn source<'a>() -> Source<'a, i32> {
+//!     pipe!{
+//!         produce(1);
+//!         produce(2);
+//!         produce(3);
+//!         produce(4);
+//!     }
+//! }
+//!
+//! fn conduit<'a>() -> Conduit<'a, i32, String> {
+//!     pipe!{
+//!         for oi1 = consume();
+//!         for oi2 = consume();
+//!         match (oi1, oi2) {
+//!             (Some(i1), Some(i2)) => pipe!{
+//!                 produce(format!("({},{})", i1, i2));
+//!                 conduit();
+//!             },
+//!             _ => pipe!{}
+//!         }
+//!     }
+//! }
+//!
+//! fn sink<'a>() -> Sink<'a, String, String> {
+//!     pipe!{
+//!         for ostr = consume();
+//!         match ostr {
+//!             None => "".to_string().into(),
+//!             Some(str) => pipe!{
+//!                 for next = sink();
+//!                 return format!("{}:{}", str, next)
+//!             }
+//!         }
+//!     }
+//! }
+//!
+//! fn main() {
+//!     let res = source().fuse(conduit()).connect(sink());
+//!     assert_eq!(res, "(1,2):(3,4):")
+//! }
 use std::fmt;
 use std::iter::FromIterator;
 
