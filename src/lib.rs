@@ -1,9 +1,8 @@
 use std::fmt;
+use std::iter::FromIterator;
 
 mod kleisli;
 pub use kleisli::Kleisli;
-
-pub mod extra;
 
 mod pipe;
 pub use pipe::*;
@@ -46,13 +45,13 @@ impl<'a, O> ConduitM<'a, (), O, ()> {
     /// # Example
     ///
     /// ```rust
-    /// use plumbum::{Source, Sink, consume, produce};
+    /// use std::iter::FromIterator;
+    /// use plumbum::{Source, Sink, produce};
     ///
-    /// let src = produce(42);
+    /// let src = Source::from_iter(vec![42, 43]);
+    /// let sink = Sink::fold(0, |x, y| x + y);
     ///
-    /// let sink = consume().map(|x| 1 + x.unwrap_or(0));
-    ///
-    /// assert_eq!(src.connect(sink), 43);
+    /// assert_eq!(src.connect(sink), 85);
     /// ```
     pub fn connect<A>(mut self, mut sink: Sink<'a, O, A>) -> A where O: 'static {
         loop {
@@ -87,20 +86,20 @@ impl<'a, O> ConduitM<'a, (), O, ()> {
 pub type Conduit<'a, I, O> = ConduitM<'a, I, O, ()>;
 
 impl<'a, I, O> ConduitM<'a, I, O, ()> {
-    /// Combines two Conduits together into a new Conduit.
+
+    /// Combines two conduits together into a new conduit.
     ///
     /// # Example
     ///
     /// ```rust
-    /// use plumbum::{Source, Sink, consume, produce};
+    /// use std::iter::FromIterator;
+    /// use plumbum::{Conduit, Source, Sink};
     ///
-    /// let src = produce(42);
+    /// let src = Source::from_iter(vec![42, 43]);
+    /// let conduit = Conduit::transform(|x| 1 + x);
+    /// let sink = Sink::fold(0, |x, y| x + y);
     ///
-    /// let conduit = consume().and_then(|x| produce(1 + x.unwrap_or(0)));
-    ///
-    /// let sink = consume().map(|x| 1 + x.unwrap_or(0));
-    ///
-    /// assert_eq!(src.fuse(conduit).connect(sink), 44);
+    /// assert_eq!(src.fuse(conduit).connect(sink), 87);
     /// ```
     pub fn fuse<P, A>(self, other: ConduitM<'a, O, P, A>) -> ConduitM<'a, I, P, A>
         where I: 'static, O: 'static, P: 'static, A: 'a {
@@ -118,6 +117,26 @@ impl<'a, I, O> ConduitM<'a, I, O, ()> {
             }
         }
     }
+
+    /// Apply a transformation to all values in a stream.
+    pub fn transform<F>(f: F) -> Self where F: 'a + Fn(I) -> O {
+        consume().and_then(|io| match io {
+            None => ().into(),
+            Some(o) => produce(f(o)).and_then(move |_| Conduit::transform(f))
+        })
+    }
+
+}
+
+impl<'a, I, O: 'a> FromIterator<O> for ConduitM<'a, I, O, ()> {
+    fn from_iter<T: IntoIterator<Item=O>>(iterator: T) -> Self
+        where T::Item: 'a {
+        let mut conduit: Self = ().into();
+        for x in iterator {
+            conduit = conduit.and_then(move |_| produce(x));
+        }
+        conduit
+    }
 }
 
 /// Consumes a stream of input values and produces a final result,
@@ -125,10 +144,31 @@ impl<'a, I, O> ConduitM<'a, I, O, ()> {
 pub type Sink<'a, I, A> = ConduitM<'a, I, Void, A>;
 
 impl<'a, I, A> ConduitM<'a, I, Void, A> {
+
     /// Generalize a `Sink` by universally quantifying the output type.
     pub fn to_consumer<O>(self) -> ConduitM<'a, I, O, A> {
         unsafe { std::mem::transmute(self) }
     }
+
+    fn sink<F>(a: A, f: F) -> Self
+        where A: 'a, F: 'a + Fn(A, I) -> Result<A, A> {
+        consume().and_then(|io| {
+            match io {
+                None => a.into(),
+                Some(i) => match f(a, i) {
+                    Ok(a) => Self::sink(a, f),
+                    Err(a) => a.into()
+                }
+            }
+        })
+    }
+
+    /// Fold all values from upstream into a final value.
+    pub fn fold<F>(a: A, f: F) -> Self
+        where A: 'a, F: 'a + Fn(A, I) -> A {
+        Self::sink(a, move |a, i| Ok(f(a, i)))
+    }
+
 }
 
 impl<'a, I, O, A> ConduitM<'a, I, O, A> {
