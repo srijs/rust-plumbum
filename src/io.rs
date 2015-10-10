@@ -66,6 +66,7 @@ pub fn writer_flush<'a, W: 'a + Write>(mut w: W) -> ConduitM<'a, Flush<Vec<u8>>,
     })
 }
 
+/// A conduit that produces values it receives from the given `Receiver`.
 pub fn receiver<'a, T: 'a>(r: Receiver<T>) -> ConduitM<'a, (), T, ()> {
     defer().and_then(|_| {
         match r.recv() {
@@ -75,6 +76,7 @@ pub fn receiver<'a, T: 'a>(r: Receiver<T>) -> ConduitM<'a, (), T, ()> {
     })
 }
 
+/// A conduit that consumes values and writes them to the given `Sender`.
 pub fn sender<'a, T: 'a>(s: Sender<T>) -> ConduitM<'a, T, (), ()> {
     consume().and_then(|xo| {
         match xo {
@@ -87,6 +89,7 @@ pub fn sender<'a, T: 'a>(s: Sender<T>) -> ConduitM<'a, T, (), ()> {
     })
 }
 
+/// A conduit that consumes values and writes them to the given `SyncSender`.
 pub fn sync_sender<'a, T: 'a>(s: SyncSender<T>) -> ConduitM<'a, T, (), ()> {
     consume().and_then(|xo| {
         match xo {
