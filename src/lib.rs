@@ -45,44 +45,38 @@
 //! ## Example
 //!
 //! ```
-//! #[macro_use] extern crate plumbum;
 //! use plumbum::*;
 //!
 //! fn source<'a>() -> Source<'a, i32> {
-//!     pipe!{
-//!         produce(1);
-//!         produce(2);
-//!         produce(3);
-//!         produce(4);
-//!     }
+//!     produce(1)
+//!     .and(produce(2))
+//!     .and(produce(3))
+//!     .and(produce(4))
 //! }
 //!
 //! fn conduit<'a>() -> Conduit<'a, i32, String> {
-//!     pipe!{
-//!         for oi1 = consume();
-//!         for oi2 = consume();
-//!         match (oi1, oi2) {
-//!             (Some(i1), Some(i2)) => pipe!{
-//!                 produce(format!("({},{})", i1, i2));
-//!                 leftover(i2);
-//!                 conduit();
+//!     // Get adjacent pairs from upstream
+//!     consume().zip(consume()).and_then(|res| {
+//!         match res {
+//!             (Some(i1), Some(i2)) => {
+//!                 produce(format!("({},{})", i1, i2))
+//!                 .and(leftover(i2))
+//!                 .and(conduit())
 //!             },
-//!             _ => pipe!{}
+//!             _ => ().into()
 //!         }
-//!     }
+//!     })
 //! }
 //!
 //! fn sink<'a>() -> Sink<'a, String, String> {
-//!     pipe!{
-//!         for ostr = consume();
-//!         match ostr {
+//!     consume().and_then(|res| {
+//!         match res {
 //!             None => "...".to_string().into(),
-//!             Some(str) => pipe!{
-//!                 for next = sink();
-//!                 return format!("{}:{}", str, next)
-//!             }
+//!             Some(str) => sink().and_then(move |next| {
+//!                 format!("{}:{}", str, next).into()
+//!             })
 //!         }
-//!     }
+//!     })
 //! }
 //!
 //! fn main() {
@@ -333,6 +327,21 @@ impl<'a, I, O, A> ConduitM<'a, I, O, A> {
             ConduitM::Yield(o, is) => ConduitM::Yield(o, is.append(js)),
             ConduitM::Leftover(i, is) => ConduitM::Leftover(i, is.append(js))
         }
+    }
+
+    /// Appends two conduits together, which means, it returns a new conduit that
+    /// executes both conduits sequentially, and forwards the return value
+    /// of the second.
+    pub fn and<B: 'a>(self, other: ConduitM<'a, I, O, B>) -> ConduitM<'a, I, O, B>
+        where I: 'a, O: 'a {
+        self.and_then(|_| other)
+    }
+
+    /// Zips two conduits together, which means, it returns a new conduit that
+    /// executes both conduits sequentially, and forwards both return values.
+    pub fn zip<B: 'a>(self, other: ConduitM<'a, I, O, B>) -> ConduitM<'a, I, O, (A, B)>
+        where A: 'a, I: 'a, O: 'a {
+        self.and_then(|a| other.map(|b| (a, b)))
     }
 
     /// Modifies the return value of the conduit.
