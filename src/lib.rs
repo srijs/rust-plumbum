@@ -1,6 +1,9 @@
 use std::fmt;
 use std::iter::FromIterator;
 
+/// Interfacing with `std::io`.
+pub mod io;
+
 mod kleisli;
 pub use kleisli::Kleisli;
 
@@ -244,4 +247,28 @@ pub fn consume<'a, I, O>() -> ConduitM<'a, I, O, Option<I>> {
 /// If the downstream component terminates, this call will never return control.
 pub fn produce<'a, I, O>(o: O) -> ConduitM<'a, I, O, ()> {
     ConduitM::Yield(Box::new(o), Kleisli::new())
+}
+
+/// Provide for a stream of data that can be flushed.
+///
+/// A number of conduits need the ability to flush the stream at some point.
+/// This provides a single wrapper datatype to be used in all such circumstances.
+pub enum Flush<O> {
+    Chunk(O),
+    Flush
+}
+
+impl<O> Flush<O> {
+    pub fn map<P, F: FnOnce(O) -> P>(self, f: F) -> Flush<P> {
+        match self {
+            Flush::Chunk(o) => Flush::Chunk(f(o)),
+            Flush::Flush => Flush::Flush
+        }
+    }
+}
+
+impl<O> From<O> for Flush<O> {
+    fn from(o: O) -> Flush<O> {
+        Flush::Chunk(o)
+    }
 }
