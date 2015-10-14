@@ -88,6 +88,9 @@ use std::fmt;
 use std::mem::{replace, swap};
 use std::iter::{Extend, FromIterator};
 
+mod chunk;
+pub use chunk::Chunk;
+
 /// Interfacing with `std::io`.
 pub mod io;
 
@@ -100,7 +103,7 @@ pub use pipe::*;
 mod fuse;
 pub use fuse::*;
 
-enum Void {}
+pub enum Void {}
 
 /// Represents a conduit, i.e. a sequence of await/yield actions.
 ///
@@ -113,22 +116,25 @@ pub enum ConduitM<'a, I, O, A> {
     /// The case `Defer(k)` means that the conduit needs another iteration to make progress,
     /// and the remaining (suspended) program is given by the kleisli arrow `k`
     Defer(Kleisli<'a, (), I, O, A>),
+    /// The case `Flush(k)` means that the conduit instructs the downstream to flush,
+    /// and the remaining (suspended) program is given by the kleisli arrow `k`
+    Flush(Kleisli<'a, (), I, O, A>),
     /// The case `Await(k)` means that the conduit waits for a value of type `I`,
     /// and the remaining (suspended) program is given by the kleisli arrow `k`.
-    Await(Kleisli<'a, Option<I>, I, O, A>),
+    Await(Kleisli<'a, Chunk<Vec<I>>, I, O, A>),
     /// The case `Yield(o, k)` means that the conduit yields a value of type `O`,
     /// and the remaining (suspended) program is given by the kleisli arrow `k`.
-    Yield(Box<O>, Kleisli<'a, (), I, O, A>),
+    Yield(Vec<O>, Kleisli<'a, (), I, O, A>),
     /// The case `Leftover(i, k)` means that the conduit has a leftover value of type `I`,
     /// and the remaining (suspended) program is given by the kleisli arrow `k`.
-    Leftover(Box<I>, Kleisli<'a, (), I, O, A>)
+    Leftover(Vec<I>, Kleisli<'a, (), I, O, A>)
 }
 
 /// Provides a stream of output values,
 /// without consuming any input or producing a final result.
-pub type Source<'a, O> = ConduitM<'a, (), O, ()>;
+pub type Source<'a, O> = ConduitM<'a, Void, O, ()>;
 
-impl<'a, O> ConduitM<'a, (), O, ()> {
+impl<'a, O> ConduitM<'a, Void, O, ()> {
 
     /// Generalize a `Source` by universally quantifying the input type.
     pub fn to_producer<I>(self) -> ConduitM<'a, I, O, ()> where O: 'static {
@@ -137,8 +143,11 @@ impl<'a, O> ConduitM<'a, (), O, ()> {
             ConduitM::Defer(k) => ConduitM::Defer(Kleisli::from(move |_| {
                 k.run(()).to_producer()
             })),
+            ConduitM::Flush(k) => ConduitM::Flush(Kleisli::from(move |_| {
+                k.run(()).to_producer()
+            })),
             ConduitM::Await(k) => ConduitM::Defer(Kleisli::from(move |_| {
-                k.run(Some(())).to_producer()
+                k.run(Chunk::Chunk(Vec::new())).to_producer()
             })),
             ConduitM::Yield(o, k) => ConduitM::Yield(o, Kleisli::from(move |_| {
                 k.run(()).to_producer()
@@ -171,26 +180,34 @@ impl<'a, O> ConduitM<'a, (), O, ()> {
                 ConduitM::Defer(k_sink) => {
                     (self, k_sink.run(()))
                 },
+                ConduitM::Flush(k_sink) => {
+                    (self, k_sink.run(()))
+                },
                 ConduitM::Await(k_sink) => {
                     match self {
                         ConduitM::Pure(x) => {
-                            (ConduitM::Pure(x), k_sink.run(None))
+                            (ConduitM::Pure(x), k_sink.run(Chunk::End))
                         },
                         ConduitM::Defer(k_src) => {
                             (k_src.run(()), ConduitM::Await(k_sink))
                         },
+                        ConduitM::Flush(k_src) => {
+                            (k_src.run(()), k_sink.run(Chunk::Flush))
+                        },
                         ConduitM::Await(k_src) => {
-                            (k_src.run(Some(())), ConduitM::Await(k_sink))
+                            (k_src.run(Chunk::Chunk(Vec::new())), ConduitM::Await(k_sink))
                         },
                         ConduitM::Yield(o, k_src) => {
-                            (k_src.run(()), k_sink.run(Some(*o)))
+                            (k_src.run(()), k_sink.run(Chunk::Chunk(o)))
                         },
                         ConduitM::Leftover(_, k_src) => {
                             (k_src.run(()), ConduitM::Await(k_sink))
                         }
                     }
                 },
-                ConduitM::Yield(_, _) => unreachable!(),
+                ConduitM::Yield(_, k_sink) => {
+                    (self, k_sink.run(()))
+                },
                 ConduitM::Leftover(o, k_sink) => {
                     (ConduitM::Yield(o, Kleisli::from(move |_| self)), k_sink.run(()))
                 }
@@ -229,6 +246,9 @@ impl<'a, I, O> ConduitM<'a, I, O, ()> {
             ConduitM::Defer(k) => ConduitM::Defer(Kleisli::from(move |_| {
                 self.fuse(k.run(()))
             })),
+            ConduitM::Flush(k) => ConduitM::Flush(Kleisli::from(move |_| {
+                self.fuse(k.run(()))
+            })),
             ConduitM::Yield(c, k) => ConduitM::Yield(c, Kleisli::from(move |_| {
                 self.fuse(k.run(()))
             })),
@@ -237,13 +257,16 @@ impl<'a, I, O> ConduitM<'a, I, O, ()> {
             })),
             ConduitM::Await(k_right) => match self {
                 ConduitM::Pure(_) => ConduitM::Defer(Kleisli::from(move |_| {
-                    Conduit::fuse(().into(), k_right.run(None))
+                    Conduit::fuse(().into(), k_right.run(Chunk::End))
                 })),
                 ConduitM::Defer(k_left) => ConduitM::Defer(Kleisli::from(move |_| {
                     k_left.run(()).fuse(ConduitM::Await(k_right))
                 })),
+                ConduitM::Flush(k_left) => ConduitM::Flush(Kleisli::from(move |_| {
+                    k_left.run(()).fuse(k_right.run(Chunk::Flush))
+                })),
                 ConduitM::Yield(o, k_left) => ConduitM::Defer(Kleisli::from(move |_| {
-                    k_left.run(()).fuse(k_right.run(Some(*o)))
+                    k_left.run(()).fuse(k_right.run(Chunk::Chunk(o)))
                 })),
                 ConduitM::Leftover(i, k_left) => ConduitM::Leftover(i, Kleisli::from(move |_| {
                     k_left.run(()).fuse(ConduitM::Await(k_right))
@@ -256,10 +279,10 @@ impl<'a, I, O> ConduitM<'a, I, O, ()> {
     }
 
     /// Apply a transformation to all values in a stream.
-    pub fn transform<F>(f: F) -> Self where F: 'a + Fn(I) -> O {
+    pub fn transform<F>(f: F) -> Self where I: 'a, O: 'a, F: 'a + Fn(I) -> O {
         consume().and_then(|io| match io {
             None => ().into(),
-            Some(o) => produce(f(o)).and_then(move |_| Conduit::transform(f))
+            Some(i) => produce(f(i)).and_then(move |_| Conduit::transform(f))
         })
     }
 
@@ -287,16 +310,33 @@ pub type Sink<'a, I, A> = ConduitM<'a, I, Void, A>;
 impl<'a, I, A> ConduitM<'a, I, Void, A> {
 
     /// Generalize a `Sink` by universally quantifying the output type.
-    pub fn to_consumer<O>(self) -> ConduitM<'a, I, O, A> {
-        unsafe { std::mem::transmute(self) }
+    pub fn to_consumer<O>(self) -> ConduitM<'a, I, O, A> where I: 'static, A: 'a {
+        match self {
+            ConduitM::Pure(x) => ConduitM::Pure(x),
+            ConduitM::Defer(k) => ConduitM::Defer(Kleisli::from(move |_| {
+                k.run(()).to_consumer()
+            })),
+            ConduitM::Flush(k) => ConduitM::Flush(Kleisli::from(move |_| {
+                k.run(()).to_consumer()
+            })),
+            ConduitM::Await(k) => ConduitM::Await(Kleisli::from(move |chunk| {
+                k.run(chunk).to_consumer()
+            })),
+            ConduitM::Yield(_, k) => ConduitM::Defer(Kleisli::from(move |_| {
+                k.run(()).to_consumer()
+            })),
+            ConduitM::Leftover(vec, k) => ConduitM::Leftover(vec, Kleisli::from(move |_| {
+                k.run(()).to_consumer()
+            }))
+        }
     }
 
     fn sink<F>(a: A, f: F) -> Self
-        where A: 'a, F: 'a + Fn(A, I) -> Result<A, A> {
+        where I: 'a, A: 'a, F: 'a + Fn(A, I) -> Result<A, A> {
         consume().and_then(|io| {
             match io {
                 None => a.into(),
-                Some(i) => match f(a, i) {
+                Some(is) => match f(a, is) {
                     Ok(a) => Self::sink(a, f),
                     Err(a) => a.into()
                 }
@@ -306,7 +346,7 @@ impl<'a, I, A> ConduitM<'a, I, Void, A> {
 
     /// Fold all values from upstream into a final value.
     pub fn fold<F>(a: A, f: F) -> Self
-        where A: 'a, F: 'a + Fn(A, I) -> A {
+        where I: 'a, A: 'a, F: 'a + Fn(A, I) -> A {
         Self::sink(a, move |a, i| Ok(f(a, i)))
     }
 
@@ -319,6 +359,7 @@ impl<'a, I, O, A> ConduitM<'a, I, O, A> {
         match self {
             ConduitM::Pure(a) => js(a),
             ConduitM::Defer(is) => ConduitM::Defer(kleisli::append_boxed(is, js)),
+            ConduitM::Flush(is) => ConduitM::Flush(kleisli::append_boxed(is, js)),
             ConduitM::Await(is) => ConduitM::Await(kleisli::append_boxed(is, js)),
             ConduitM::Yield(o, is) => ConduitM::Yield(o, kleisli::append_boxed(is, js)),
             ConduitM::Leftover(i, is) => ConduitM::Leftover(i, kleisli::append_boxed(is, js))
@@ -334,6 +375,7 @@ impl<'a, I, O, A> ConduitM<'a, I, O, A> {
         match self {
             ConduitM::Pure(a) => js(*a),
             ConduitM::Defer(is) => ConduitM::Defer(is.append(js)),
+            ConduitM::Flush(is) => ConduitM::Flush(is.append(js)),
             ConduitM::Await(is) => ConduitM::Await(is.append(js)),
             ConduitM::Yield(o, is) => ConduitM::Yield(o, is.append(js)),
             ConduitM::Leftover(i, is) => ConduitM::Leftover(i, is.append(js))
@@ -391,6 +433,7 @@ impl<'a, I, O, A: fmt::Debug> fmt::Debug for ConduitM<'a, I, O, A> {
         match self {
             &ConduitM::Pure(ref a) => write!(f, "Pure({:?})", a),
             &ConduitM::Defer(_) => write!(f, "Defer(..)"),
+            &ConduitM::Flush(_) => write!(f, "Flush(..)"),
             &ConduitM::Await(_) => write!(f, "Await(..)"),
             &ConduitM::Yield(_, _) => write!(f, "Yield(..)"),
             &ConduitM::Leftover(_, _) => write!(f, "Leftover(..)")
@@ -408,15 +451,43 @@ impl<'a, I, O, A> From<A> for ConduitM<'a, I, O, A> {
 ///
 /// If no data is available, returns `None`.
 /// Once it returns `None`, subsequent calls will also return `None`.
-pub fn consume<'a, I, O>() -> ConduitM<'a, I, O, Option<I>> {
+pub fn consume_chunk<'a, I, O>() -> ConduitM<'a, I, O, Chunk<Vec<I>>> {
     ConduitM::Await(Kleisli::new())
+}
+
+/// Wait for an input chunk from upstream.
+///
+/// If no data is available, returns `None`.
+/// Once it returns `None`, subsequent calls will also return `None`.
+pub fn consume<'a, I: 'a, O: 'a>() -> ConduitM<'a, I, O, Option<I>> {
+    ConduitM::Await(Kleisli::from(move |iso: Chunk<Vec<I>>| {
+        match iso {
+            Chunk::End => None.into(),
+            Chunk::Flush => consume(),
+            Chunk::Chunk(mut is) => if is.len() > 0 {
+                let i = is.remove(0);
+                leftover_chunk(is).and(ConduitM::from(Some(i)))
+            } else {
+                consume()
+            }
+        }
+    }))
+}
+
+/// Send a chunk of values downstream to the next component to consume.
+///
+/// If the downstream component terminates, this call will never return control.
+pub fn produce_chunk<'a, I, O>(o: Vec<O>) -> ConduitM<'a, I, O, ()> {
+    ConduitM::Yield(o, Kleisli::new())
 }
 
 /// Send a value downstream to the next component to consume.
 ///
 /// If the downstream component terminates, this call will never return control.
 pub fn produce<'a, I, O>(o: O) -> ConduitM<'a, I, O, ()> {
-    ConduitM::Yield(Box::new(o), Kleisli::new())
+    let mut v = Vec::with_capacity(1);
+    v.push(o);
+    ConduitM::Yield(v, Kleisli::new())
 }
 
 /// Defers a conduit action. Can be used to introduce artifical laziness.
@@ -426,30 +497,14 @@ pub fn defer<'a, I, O>() -> ConduitM<'a, I, O, ()> {
 
 /// Provide a single piece of leftover input to be consumed by the
 /// next component in the current binding.
+pub fn leftover_chunk<'a, I, O>(i: Vec<I>) -> ConduitM<'a, I, O, ()> {
+    ConduitM::Leftover(i, Kleisli::new())
+}
+
+/// Provide a single piece of leftover input to be consumed by the
+/// next component in the current binding.
 pub fn leftover<'a, I, O>(i: I) -> ConduitM<'a, I, O, ()> {
-    ConduitM::Leftover(Box::new(i), Kleisli::new())
-}
-
-/// Provide for a stream of data that can be flushed.
-///
-/// A number of conduits need the ability to flush the stream at some point.
-/// This provides a single wrapper datatype to be used in all such circumstances.
-pub enum Flush<O> {
-    Chunk(O),
-    Flush
-}
-
-impl<O> Flush<O> {
-    pub fn map<P, F: FnOnce(O) -> P>(self, f: F) -> Flush<P> {
-        match self {
-            Flush::Chunk(o) => Flush::Chunk(f(o)),
-            Flush::Flush => Flush::Flush
-        }
-    }
-}
-
-impl<O> From<O> for Flush<O> {
-    fn from(o: O) -> Flush<O> {
-        Flush::Chunk(o)
-    }
+    let mut v = Vec::with_capacity(1);
+    v.push(i);
+    ConduitM::Leftover(v, Kleisli::new())
 }
