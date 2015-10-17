@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `plumbum` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, plumbum">
+
+    <title>plumbum - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../main.css">
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <section class="sidebar">
+        
+        <p class='location'></p><script>window.sidebarCurrent = {name: 'plumbum', ty: 'mod', relpath: '../'};</script>
+    </section>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Crate <a class='mod' href=''>plumbum</a></span><span class='out-of-band'><span id='render-detail'>
+            <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                [<span class='inner'>&#x2212;</span>]
+            </a>
+        </span><a id='src-0' class='srclink' href='../src/plumbum/lib.rs.html#1-510' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p><em>Plumbum</em> (latin for lead) is a port of Michael Snoyman&#39;s excellent
+<a href="https://www.fpcomplete.com/user/snoyberg/library-documentation/conduit-overview"><code>conduit</code></a>
+library.</p>
+
+<p>It allows for production, transformation, and consumption of streams of
+data in constant memory.
+It can be used for processing files, dealing with network interfaces,
+or parsing structured data in an event-driven manner.</p>
+
+<h2 id="features" class='section-header'><a
+                           href="#features">Features</a></h2>
+<ul>
+<li><p>Large and possibly infinite streams can be processed in constant memory.</p></li>
+<li><p>Chunks of data are dealt with lazily, one piece at a time, instead of needing to
+read in the entire body at once.</p></li>
+<li><p>The resulting components are pure computations, and allow us to retain
+composability while dealing with the imperative world of I/O.</p></li>
+</ul>
+
+<h2 id="basics" class='section-header'><a
+                           href="#basics">Basics</a></h2>
+<p>There are three main concepts:</p>
+
+<ol>
+<li>A <code>Source</code> will produce a stream of data values and send them downstream.</li>
+<li>A <code>Sink</code> will consume a stream of data values from upstream and produce a return value.</li>
+<li>A <code>Conduit</code> will consume a stream of values from upstream and produces a new stream to send downstream.</li>
+</ol>
+
+<p>In order to combine these different components, we have connecting and fusing.
+The <code>connect</code> method will combine a <code>Source</code> and <code>Sink</code>,
+feeding the values produced by the former into the latter, and producing a final result.
+Fusion, on the other hand, will take two components and generate a new component.
+For example, fusing a <code>Conduit</code> and <code>Sink</code> together into a new <code>Sink</code>,
+will consume the same values as the original <code>Conduit</code> and produce the same result as the original <code>Sink</code>.</p>
+
+<h2 id="primitives" class='section-header'><a
+                           href="#primitives">Primitives</a></h2>
+<p>There are four core primitives:</p>
+
+<ol>
+<li><code>consume</code> takes a single value from upstream, if available.</li>
+<li><code>produce</code> sends a single value downstream.</li>
+<li><code>leftover</code> puts a single value back in the upstream queue,
+ready to be read by the next call to <code>consume</code>.</li>
+<li><code>defer</code> introduces a point of lazyiness, artifically deferring all further actions.</li>
+</ol>
+
+<h2 id="example" class='section-header'><a
+                           href="#example">Example</a></h2><pre class='rust rust-example-rendered'>
+<span class='kw'>use</span> <span class='ident'>plumbum</span>::<span class='op'>*</span>;
+
+<span class='kw'>fn</span> <span class='ident'>source</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>() <span class='op'>-&gt;</span> <span class='ident'>Source</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>i32</span><span class='op'>&gt;</span> {
+    <span class='ident'>defer</span>()
+    .<span class='ident'>and</span>(<span class='ident'>produce</span>(<span class='number'>1</span>))
+    .<span class='ident'>and</span>(<span class='ident'>produce</span>(<span class='number'>2</span>))
+    .<span class='ident'>and</span>(<span class='ident'>produce</span>(<span class='number'>3</span>))
+    .<span class='ident'>and</span>(<span class='ident'>produce</span>(<span class='number'>4</span>))
+}
+
+<span class='kw'>fn</span> <span class='ident'>conduit</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>() <span class='op'>-&gt;</span> <span class='ident'>Conduit</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>i32</span>, <span class='ident'>String</span><span class='op'>&gt;</span> {
+    <span class='comment'>// Get adjacent pairs from upstream</span>
+    <span class='ident'>consume</span>().<span class='ident'>zip</span>(<span class='ident'>consume</span>()).<span class='ident'>and_then</span>(<span class='op'>|</span><span class='ident'>res</span><span class='op'>|</span> {
+        <span class='kw'>match</span> <span class='ident'>res</span> {
+            (<span class='prelude-val'>Some</span>(<span class='ident'>i1</span>), <span class='prelude-val'>Some</span>(<span class='ident'>i2</span>)) <span class='op'>=&gt;</span> {
+                <span class='ident'>produce</span>(<span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;({},{})&quot;</span>, <span class='ident'>i1</span>, <span class='ident'>i2</span>))
+                .<span class='ident'>and</span>(<span class='ident'>leftover</span>(<span class='ident'>i2</span>))
+                .<span class='ident'>and</span>(<span class='ident'>conduit</span>())
+            },
+            _ <span class='op'>=&gt;</span> ().<span class='ident'>into</span>()
+        }
+    })
+}
+
+<span class='kw'>fn</span> <span class='ident'>sink</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>() <span class='op'>-&gt;</span> <span class='ident'>Sink</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>String</span>, <span class='ident'>String</span><span class='op'>&gt;</span> {
+    <span class='ident'>consume</span>().<span class='ident'>and_then</span>(<span class='op'>|</span><span class='ident'>res</span><span class='op'>|</span> {
+        <span class='kw'>match</span> <span class='ident'>res</span> {
+            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='string'>&quot;...&quot;</span>.<span class='ident'>to_string</span>().<span class='ident'>into</span>(),
+            <span class='prelude-val'>Some</span>(<span class='ident'>str</span>) <span class='op'>=&gt;</span> <span class='ident'>sink</span>().<span class='ident'>and_then</span>(<span class='kw'>move</span> <span class='op'>|</span><span class='ident'>next</span><span class='op'>|</span> {
+                <span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;{}:{}&quot;</span>, <span class='ident'>str</span>, <span class='ident'>next</span>).<span class='ident'>into</span>()
+            })
+        }
+    })
+}
+
+<span class='kw'>fn</span> <span class='ident'>main</span>() {
+    <span class='kw'>let</span> <span class='ident'>res</span> <span class='op'>=</span> <span class='ident'>source</span>().<span class='ident'>fuse</span>(<span class='ident'>conduit</span>()).<span class='ident'>connect</span>(<span class='ident'>sink</span>());
+    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>res</span>, <span class='string'>&quot;(1,2):(2,3):(3,4):...&quot;</span>)
+}</pre>
+</div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                    <tr class=' module-item'>
+                        <td><a class='mod' href='io/index.html'
+                               title='plumbum::io'>io</a></td>
+                        <td class='docblock short'>
+                             <p>Interfacing with <code>std::io</code>.</p>
+
+                        </td>
+                    </tr>
+                </table><h2 id='macros' class='section-header'><a href="#macros">Macros</a></h2>
+<table>
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.fuse!.html'
+                               title='plumbum::fuse!'>fuse!</a></td>
+                        <td class='docblock short'>
+                             <p>Provides a convient syntax for fusing conduits.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.pipe!.html'
+                               title='plumbum::pipe!'>pipe!</a></td>
+                        <td class='docblock short'>
+                             <p>Provides a convient syntax for conduit operations.</p>
+
+                        </td>
+                    </tr>
+                </table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                    <tr class=' module-item'>
+                        <td><a class='struct' href='struct.Kleisli.html'
+                               title='plumbum::Kleisli'>Kleisli</a></td>
+                        <td class='docblock short'>
+                             <p>The Kleisli arrow from <code>A</code> to <code>ConduitM&lt;I, O, B&gt;</code>.</p>
+
+                        </td>
+                    </tr>
+                </table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table>
+                    <tr class=' module-item'>
+                        <td><a class='enum' href='enum.Chunk.html'
+                               title='plumbum::Chunk'>Chunk</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='enum' href='enum.ConduitM.html'
+                               title='plumbum::ConduitM'>ConduitM</a></td>
+                        <td class='docblock short'>
+                             <p>Represents a conduit, i.e. a sequence of await/yield actions.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='enum' href='enum.Void.html'
+                               title='plumbum::Void'>Void</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                </table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.consume.html'
+                               title='plumbum::consume'>consume</a></td>
+                        <td class='docblock short'>
+                             <p>Wait for an input chunk from upstream.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.consume_chunk.html'
+                               title='plumbum::consume_chunk'>consume_chunk</a></td>
+                        <td class='docblock short'>
+                             <p>Wait for a single input value from upstream.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.defer.html'
+                               title='plumbum::defer'>defer</a></td>
+                        <td class='docblock short'>
+                             <p>Defers a conduit action. Can be used to introduce artifical laziness.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.leftover.html'
+                               title='plumbum::leftover'>leftover</a></td>
+                        <td class='docblock short'>
+                             <p>Provide a single piece of leftover input to be consumed by the
+next component in the current binding.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.leftover_chunk.html'
+                               title='plumbum::leftover_chunk'>leftover_chunk</a></td>
+                        <td class='docblock short'>
+                             <p>Provide a single piece of leftover input to be consumed by the
+next component in the current binding.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.produce.html'
+                               title='plumbum::produce'>produce</a></td>
+                        <td class='docblock short'>
+                             <p>Send a value downstream to the next component to consume.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.produce_chunk.html'
+                               title='plumbum::produce_chunk'>produce_chunk</a></td>
+                        <td class='docblock short'>
+                             <p>Send a chunk of values downstream to the next component to consume.</p>
+
+                        </td>
+                    </tr>
+                </table><h2 id='types' class='section-header'><a href="#types">Type Definitions</a></h2>
+<table>
+                    <tr class=' module-item'>
+                        <td><a class='type' href='type.Conduit.html'
+                               title='plumbum::Conduit'>Conduit</a></td>
+                        <td class='docblock short'>
+                             <p>Consumes a stream of input values and produces a stream of output values,
+without producing a final result.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='type' href='type.Sink.html'
+                               title='plumbum::Sink'>Sink</a></td>
+                        <td class='docblock short'>
+                             <p>Consumes a stream of input values and produces a final result,
+without producing any output.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='type' href='type.Source.html'
+                               title='plumbum::Source'>Source</a></td>
+                        <td class='docblock short'>
+                             <p>Provides a stream of output values,
+without consuming any input or producing a final result.</p>
+
+                        </td>
+                    </tr>
+                </table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <div id="help" class="hidden">
+        <div>
+            <div class="shortcuts">
+                <h1>Keyboard Shortcuts</h1>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h1>Search Tricks</h1>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>typedef</code> (or
+                    <code>tdef</code>).
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code>)
+                </p>
+            </div>
+        </div>
+    </div>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "plumbum";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    
+    <script async src="../search-index.js"></script>
+</body>
+</html>

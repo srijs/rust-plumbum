@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `ConduitM` enum in crate `plumbum`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, ConduitM">
+
+    <title>plumbum::ConduitM - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../main.css">
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <section class="sidebar">
+        
+        <p class='location'><a href='index.html'>plumbum</a></p><script>window.sidebarCurrent = {name: 'ConduitM', ty: 'enum', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </section>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content enum">
+<h1 class='fqn'><span class='in-band'>Enum <a href='index.html'>plumbum</a>::<wbr><a class='enum' href=''>ConduitM</a></span><span class='out-of-band'><span id='render-detail'>
+            <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                [<span class='inner'>&#x2212;</span>]
+            </a>
+        </span><a id='src-814' class='srclink' href='../src/plumbum/lib.rs.html#113-131' title='goto source code'>[src]</a></span></h1>
+<pre class='rust enum'>pub enum ConduitM&lt;'a, I, O, A&gt; {
+    Pure(<a class='struct' href='http://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html' title='alloc::boxed::Box'>Box</a>&lt;A&gt;),
+    Defer(<a class='struct' href='../plumbum/struct.Kleisli.html' title='plumbum::Kleisli'>Kleisli</a>&lt;'a, <a href='http://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, I, O, A&gt;),
+    Flush(<a class='struct' href='../plumbum/struct.Kleisli.html' title='plumbum::Kleisli'>Kleisli</a>&lt;'a, <a href='http://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, I, O, A&gt;),
+    Await(<a class='struct' href='../plumbum/struct.Kleisli.html' title='plumbum::Kleisli'>Kleisli</a>&lt;'a, <a class='enum' href='../plumbum/enum.Chunk.html' title='plumbum::Chunk'>Chunk</a>&lt;<a class='struct' href='http://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;I&gt;&gt;, I, O, A&gt;),
+    Yield(<a class='struct' href='http://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;O&gt;, <a class='struct' href='../plumbum/struct.Kleisli.html' title='plumbum::Kleisli'>Kleisli</a>&lt;'a, <a href='http://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, I, O, A&gt;),
+    Leftover(<a class='struct' href='http://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;I&gt;, <a class='struct' href='../plumbum/struct.Kleisli.html' title='plumbum::Kleisli'>Kleisli</a>&lt;'a, <a href='http://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, I, O, A&gt;),
+}</pre><div class='docblock'><p>Represents a conduit, i.e. a sequence of await/yield actions.</p>
+
+<ul>
+<li><code>I</code> is the type of values the conduit consumes from upstream.</li>
+<li><code>O</code> is the type of values the conduit passes downstream.</li>
+<li><code>A</code> is the return type of the conduit.</li>
+</ul>
+</div><h2 class='variants'>Variants</h2>
+<table><tr><td id='variant.Pure'><code>Pure</code></td><td><div class='docblock'><p>The case <code>Pure(a)</code> means that the conduit contains no further actions and just returns the result <code>a</code>.</p>
+</div></td></tr><tr><td id='variant.Defer'><code>Defer</code></td><td><div class='docblock'><p>The case <code>Defer(k)</code> means that the conduit needs another iteration to make progress,
+and the remaining (suspended) program is given by the kleisli arrow <code>k</code></p>
+</div></td></tr><tr><td id='variant.Flush'><code>Flush</code></td><td><div class='docblock'><p>The case <code>Flush(k)</code> means that the conduit instructs the downstream to flush,
+and the remaining (suspended) program is given by the kleisli arrow <code>k</code></p>
+</div></td></tr><tr><td id='variant.Await'><code>Await</code></td><td><div class='docblock'><p>The case <code>Await(k)</code> means that the conduit waits for a value of type <code>I</code>,
+and the remaining (suspended) program is given by the kleisli arrow <code>k</code>.</p>
+</div></td></tr><tr><td id='variant.Yield'><code>Yield</code></td><td><div class='docblock'><p>The case <code>Yield(o, k)</code> means that the conduit yields a value of type <code>O</code>,
+and the remaining (suspended) program is given by the kleisli arrow <code>k</code>.</p>
+</div></td></tr><tr><td id='variant.Leftover'><code>Leftover</code></td><td><div class='docblock'><p>The case <code>Leftover(i, k)</code> means that the conduit has a leftover value of type <code>I</code>,
+and the remaining (suspended) program is given by the kleisli arrow <code>k</code>.</p>
+</div></td></tr></table><h2 id='methods'>Methods</h2><h3 class='impl'><code>impl&lt;'a, O&gt; <a class='enum' href='../plumbum/enum.ConduitM.html' title='plumbum::ConduitM'>ConduitM</a>&lt;'a, <a class='enum' href='../plumbum/enum.Void.html' title='plumbum::Void'>Void</a>, O, <a href='http://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>&gt;</code></h3><div class='impl-items'><h4 id='method.to_producer' class='method'><code>fn <a href='#method.to_producer' class='fnname'>to_producer</a>&lt;I&gt;(self) -&gt; <a class='enum' href='../plumbum/enum.ConduitM.html' title='plumbum::ConduitM'>ConduitM</a>&lt;'a, I, O, <a href='http://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>&gt; <span class='where'>where O: 'static</span></code></h4>
+<div class='docblock'><p>Generalize a <code>Source</code> by universally quantifying the input type.</p>
+</div><h4 id='method.connect' class='method'><code>fn <a href='#method.connect' class='fnname'>connect</a>&lt;A&gt;(self, sink: <a class='type' href='../plumbum/type.Sink.html' title='plumbum::Sink'>Sink</a>&lt;'a, O, A&gt;) -&gt; A <span class='where'>where O: 'static</span></code></h4>
+<div class='docblock'><p>Pulls data from the source and pushes it into the sink.</p>
+
+<h1 id="example" class='section-header'><a
+                           href="#example">Example</a></h1><pre class='rust rust-example-rendered'>
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>iter</span>::<span class='ident'>FromIterator</span>;
+<span class='kw'>use</span> <span class='ident'>plumbum</span>::{<span class='ident'>Source</span>, <span class='ident'>Sink</span>, <span class='ident'>produce</span>};
+
+<span class='kw'>let</span> <span class='ident'>src</span> <span class='op'>=</span> <span class='ident'>Source</span>::<span class='ident'>from_iter</span>(<span class='macro'>vec</span><span class='macro'>!</span>[<span class='number'>42</span>, <span class='number'>43</span>]);
+<span class='kw'>let</span> <span class='ident'>sink</span> <span class='op'>=</span> <span class='ident'>Sink</span>::<span class='ident'>fold</span>(<span class='number'>0</span>, <span class='op'>|</span><span class='ident'>x</span>, <span class='ident'>y</span><span class='op'>|</span> <span class='ident'>x</span> <span class='op'>+</span> <span class='ident'>y</span>);
+
+<span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>src</span>.<span class='ident'>connect</span>(<span class='ident'>sink</span>), <span class='number'>85</span>);</pre>
+</div></div><h3 class='impl'><code>impl&lt;'a, I, O&gt; <a class='enum' href='../plumbum/enum.ConduitM.html' title='plumbum::ConduitM'>ConduitM</a>&lt;'a, I, O, <a href='http://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>&gt;</code></h3><div class='impl-items'><h4 id='method.fuse' class='method'><code>fn <a href='#method.fuse' class='fnname'>fuse</a>&lt;P, A&gt;(self, other: <a class='enum' href='../plumbum/enum.ConduitM.html' title='plumbum::ConduitM'>ConduitM</a>&lt;'a, O, P, A&gt;) -&gt; <a class='enum' href='../plumbum/enum.ConduitM.html' title='plumbum::ConduitM'>ConduitM</a>&lt;'a, I, P, A&gt; <span class='where'>where I: 'static, O: 'static, P: 'static, A: 'a</span></code></h4>
+<div class='docblock'><p>Combines two conduits together into a new conduit.</p>
+
+<h1 id="example" class='section-header'><a
+                           href="#example">Example</a></h1><pre class='rust rust-example-rendered'>
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>iter</span>::<span class='ident'>FromIterator</span>;
+<span class='kw'>use</span> <span class='ident'>plumbum</span>::{<span class='ident'>Conduit</span>, <span class='ident'>Source</span>, <span class='ident'>Sink</span>};
+
+<span class='kw'>let</span> <span class='ident'>src</span> <span class='op'>=</span> <span class='ident'>Source</span>::<span class='ident'>from_iter</span>(<span class='macro'>vec</span><span class='macro'>!</span>[<span class='number'>42</span>, <span class='number'>43</span>]);
+<span class='kw'>let</span> <span class='ident'>conduit</span> <span class='op'>=</span> <span class='ident'>Conduit</span>::<span class='ident'>transform</span>(<span class='op'>|</span><span class='ident'>x</span><span class='op'>|</span> <span class='number'>1</span> <span class='op'>+</span> <span class='ident'>x</span>);
+<span class='kw'>let</span> <span class='ident'>sink</span> <span class='op'>=</span> <span class='ident'>Sink</span>::<span class='ident'>fold</span>(<span class='number'>0</span>, <span class='op'>|</span><span class='ident'>x</span>, <span class='ident'>y</span><span class='op'>|</span> <span class='ident'>x</span> <span class='op'>+</span> <span class='ident'>y</span>);
+
+<span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>src</span>.<span class='ident'>fuse</span>(<span class='ident'>conduit</span>).<span class='ident'>connect</span>(<span class='ident'>sink</span>), <span class='number'>87</span>);</pre>
+</div><h4 id='method.transform' class='method'><code>fn <a href='#method.transform' class='fnname'>transform</a>&lt;F&gt;(f: F) -&gt; Self <span class='where'>where I: 'a, O: 'a, F: 'a + <a class='trait' href='http://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(I) -&gt; O</span></code></h4>
+<div class='docblock'><p>Apply a transformation to all values in a stream.</p>
+</div></div><h3 class='impl'><code>impl&lt;'a, I, A&gt; <a class='enum' href='../plumbum/enum.ConduitM.html' title='plumbum::ConduitM'>ConduitM</a>&lt;'a, I, <a class='enum' href='../plumbum/enum.Void.html' title='plumbum::Void'>Void</a>, A&gt;</code></h3><div class='impl-items'><h4 id='method.to_consumer' class='method'><code>fn <a href='#method.to_consumer' class='fnname'>to_consumer</a>&lt;O&gt;(self) -&gt; <a class='enum' href='../plumbum/enum.ConduitM.html' title='plumbum::ConduitM'>ConduitM</a>&lt;'a, I, O, A&gt; <span class='where'>where I: 'static, A: 'a</span></code></h4>
+<div class='docblock'><p>Generalize a <code>Sink</code> by universally quantifying the output type.</p>
+</div><h4 id='method.fold' class='method'><code>fn <a href='#method.fold' class='fnname'>fold</a>&lt;F&gt;(a: A, f: F) -&gt; Self <span class='where'>where I: 'a, A: 'a, F: 'a + <a class='trait' href='http://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(A, I) -&gt; A</span></code></h4>
+<div class='docblock'><p>Fold all values from upstream into a final value.</p>
+</div></div><h3 class='impl'><code>impl&lt;'a, I, O, A&gt; <a class='enum' href='../plumbum/enum.ConduitM.html' title='plumbum::ConduitM'>ConduitM</a>&lt;'a, I, O, A&gt;</code></h3><div class='impl-items'><h4 id='method.and_then' class='method'><code>fn <a href='#method.and_then' class='fnname'>and_then</a>&lt;B, F&gt;(self, js: F) -&gt; <a class='enum' href='../plumbum/enum.ConduitM.html' title='plumbum::ConduitM'>ConduitM</a>&lt;'a, I, O, B&gt; <span class='where'>where F: 'a + <a class='trait' href='http://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(A) -&gt; <a class='enum' href='../plumbum/enum.ConduitM.html' title='plumbum::ConduitM'>ConduitM</a>&lt;'a, I, O, B&gt;</span></code></h4>
+<div class='docblock'><p>Appends a continuation to a conduit. Which means,
+given a function from <code>A</code> to <code>ConduitM&lt;I, O, B&gt;</code>,
+passes the return value of the conduit to the function,
+and returns the resulting program.</p>
+</div><h4 id='method.and' class='method'><code>fn <a href='#method.and' class='fnname'>and</a>&lt;B: 'a&gt;(self, other: <a class='enum' href='../plumbum/enum.ConduitM.html' title='plumbum::ConduitM'>ConduitM</a>&lt;'a, I, O, B&gt;) -&gt; <a class='enum' href='../plumbum/enum.ConduitM.html' title='plumbum::ConduitM'>ConduitM</a>&lt;'a, I, O, B&gt; <span class='where'>where I: 'a, O: 'a</span></code></h4>
+<div class='docblock'><p>Appends two conduits together, which means, it returns a new conduit that
+executes both conduits sequentially, and forwards the return value
+of the second.</p>
+</div><h4 id='method.zip' class='method'><code>fn <a href='#method.zip' class='fnname'>zip</a>&lt;B: 'a&gt;(self, other: <a class='enum' href='../plumbum/enum.ConduitM.html' title='plumbum::ConduitM'>ConduitM</a>&lt;'a, I, O, B&gt;) -&gt; <a class='enum' href='../plumbum/enum.ConduitM.html' title='plumbum::ConduitM'>ConduitM</a>&lt;'a, I, O, <a href='http://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(A, B)</a>&gt; <span class='where'>where A: 'a, I: 'a, O: 'a</span></code></h4>
+<div class='docblock'><p>Zips two conduits together, which means, it returns a new conduit that
+executes both conduits sequentially, and forwards both return values.</p>
+</div><h4 id='method.map' class='method'><code>fn <a href='#method.map' class='fnname'>map</a>&lt;B, F&gt;(self, f: F) -&gt; <a class='enum' href='../plumbum/enum.ConduitM.html' title='plumbum::ConduitM'>ConduitM</a>&lt;'a, I, O, B&gt; <span class='where'>where F: 'a + <a class='trait' href='http://doc.rust-lang.org/nightly/core/ops/trait.FnOnce.html' title='core::ops::FnOnce'>FnOnce</a>(A) -&gt; B</span></code></h4>
+<div class='docblock'><p>Modifies the return value of the conduit.
+Seen differently, it lifts a function from
+<code>A</code> to <code>B</code> into a function from <code>ConduitM&lt;I, O, A&gt;</code>
+to <code>ConduitM&lt;I, O, B&gt;</code>.</p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><code>impl&lt;'a, I, O: 'a&gt; <a class='trait' href='http://doc.rust-lang.org/nightly/core/iter/trait.Extend.html' title='core::iter::Extend'>Extend</a>&lt;O&gt; for <a class='enum' href='../plumbum/enum.ConduitM.html' title='plumbum::ConduitM'>ConduitM</a>&lt;'a, I, O, <a href='http://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>&gt;</code></h3><div class='impl-items'><h4 id='method.extend' class='method'><code>fn <a href='http://doc.rust-lang.org/nightly/core/iter/trait.Extend.html#method.extend' class='fnname'>extend</a>&lt;T: <a class='trait' href='http://doc.rust-lang.org/nightly/core/iter/trait.IntoIterator.html' title='core::iter::IntoIterator'>IntoIterator</a>&lt;Item=O&gt;&gt;(&amp;mut self, iterator: T) <span class='where'>where I: 'a, T::IntoIter: 'a</span></code></h4>
+</div><h3 class='impl'><code>impl&lt;'a, I, O: 'a&gt; <a class='trait' href='http://doc.rust-lang.org/nightly/core/iter/trait.FromIterator.html' title='core::iter::FromIterator'>FromIterator</a>&lt;O&gt; for <a class='enum' href='../plumbum/enum.ConduitM.html' title='plumbum::ConduitM'>ConduitM</a>&lt;'a, I, O, <a href='http://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>&gt;</code></h3><div class='impl-items'><h4 id='method.from_iter' class='method'><code>fn <a href='http://doc.rust-lang.org/nightly/core/iter/trait.FromIterator.html#method.from_iter' class='fnname'>from_iter</a>&lt;T: <a class='trait' href='http://doc.rust-lang.org/nightly/core/iter/trait.IntoIterator.html' title='core::iter::IntoIterator'>IntoIterator</a>&lt;Item=O&gt;&gt;(iterator: T) -&gt; Self <span class='where'>where I: 'a, T::IntoIter: 'a</span></code></h4>
+</div><h3 class='impl'><code>impl&lt;'a, I, O, A: <a class='trait' href='http://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html' title='core::cmp::PartialEq'>PartialEq</a>&gt; <a class='trait' href='http://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html' title='core::cmp::PartialEq'>PartialEq</a> for <a class='enum' href='../plumbum/enum.ConduitM.html' title='plumbum::ConduitM'>ConduitM</a>&lt;'a, I, O, A&gt;</code></h3><div class='impl-items'><h4 id='method.eq' class='method'><code>fn <a href='http://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#method.eq' class='fnname'>eq</a>(&amp;self, other: &amp;<a class='enum' href='../plumbum/enum.ConduitM.html' title='plumbum::ConduitM'>ConduitM</a>&lt;'a, I, O, A&gt;) -&gt; <a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></h4>
+<h4 id='method.ne' class='method'><code>fn <a href='http://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#method.ne' class='fnname'>ne</a>(&amp;self, other: &amp;Rhs) -&gt; <a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></h4>
+</div><h3 class='impl'><code>impl&lt;'a, I, O, A: <a class='trait' href='http://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html' title='core::fmt::Debug'>Debug</a>&gt; <a class='trait' href='http://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html' title='core::fmt::Debug'>Debug</a> for <a class='enum' href='../plumbum/enum.ConduitM.html' title='plumbum::ConduitM'>ConduitM</a>&lt;'a, I, O, A&gt;</code></h3><div class='impl-items'><h4 id='method.fmt' class='method'><code>fn <a href='http://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#method.fmt' class='fnname'>fmt</a>(&amp;self, f: &amp;mut <a class='struct' href='http://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html' title='core::fmt::Formatter'>Formatter</a>) -&gt; <a class='type' href='http://doc.rust-lang.org/nightly/core/fmt/type.Result.html' title='core::fmt::Result'>Result</a></code></h4>
+</div><h3 class='impl'><code>impl&lt;'a, I, O, A&gt; <a class='trait' href='http://doc.rust-lang.org/nightly/core/convert/trait.From.html' title='core::convert::From'>From</a>&lt;A&gt; for <a class='enum' href='../plumbum/enum.ConduitM.html' title='plumbum::ConduitM'>ConduitM</a>&lt;'a, I, O, A&gt;</code></h3><div class='impl-items'><h4 id='method.from' class='method'><code>fn <a href='http://doc.rust-lang.org/nightly/core/convert/trait.From.html#method.from' class='fnname'>from</a>(a: A) -&gt; <a class='enum' href='../plumbum/enum.ConduitM.html' title='plumbum::ConduitM'>ConduitM</a>&lt;'a, I, O, A&gt;</code></h4>
+</div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <div id="help" class="hidden">
+        <div>
+            <div class="shortcuts">
+                <h1>Keyboard Shortcuts</h1>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h1>Search Tricks</h1>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>typedef</code> (or
+                    <code>tdef</code>).
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code>)
+                </p>
+            </div>
+        </div>
+    </div>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "plumbum";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    
+    <script async src="../search-index.js"></script>
+</body>
+</html>

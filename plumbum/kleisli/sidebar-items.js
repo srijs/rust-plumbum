@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["Kleisli","The Kleisli arrow from `A` to `ConduitM<I, O, B>`."]]});
